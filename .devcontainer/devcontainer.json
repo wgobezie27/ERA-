@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERA Survey Automation Platform - Executive Geodesy Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        era: {
+                            navy: '#0B2545',
+                            blue: '#134074',
+                            light: '#8DA9C4',
+                            cream: '#EEF4F8',
+                            gold: '#D4AF37',
+                            goldHover: '#C59B27',
+                            darkGold: '#A37F1C'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Leaflet.js Mapping Library CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- MathJax for rendering Survey Math Formulas (LaTeX) -->
+    <script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        /* Leaflet custom map sizing */
+        #leafletMap {
+            height: 420px;
+            width: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-era-cream text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Top Executive Banner -->
+    <header class="bg-era-navy text-white shadow-xl border-b-4 border-era-gold sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4">
+                <div class="bg-white p-2 rounded-lg shadow-inner">
+                    <svg class="w-12 h-12 text-era-navy" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 80 L50 20 L90 80 Z" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>
+                        <path d="M30 80 L50 45 L70 80" stroke="#D4AF37" stroke-width="6" stroke-linejoin="round"/>
+                        <circle cx="50" cy="30" r="5" fill="#D4AF37" />
+                        <line x1="10" y1="80" x2="90" y2="80" stroke="currentColor" stroke-width="8" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
+                        ETHIOPIAN ROADS ADMINISTRATION (ERA)
+                    </h1>
+                    <p class="text-[10px] sm:text-xs text-era-light font-semibold tracking-wider uppercase">
+                        Survey Automation & Quality Compliance Core Platform • Adindan UTM Zone 37N (EPSG:20137)
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Quick Project Focus Information -->
+            <div class="flex items-center gap-3 bg-era-blue px-4 py-1.5 rounded-lg border border-era-light/20">
+                <div class="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse"></div>
+                <div class="text-xs text-left">
+                    <span class="block text-slate-300 text-[10px] uppercase font-bold">Corridor Centerline Focus</span>
+                    <span class="block text-white font-bold" id="focusLocation">Hawassa Bypass Corridor (HBC-2026)</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-white border-b border-slate-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex space-x-8 overflow-x-auto">
+                <button onclick="switchTab('dashboard')" id="tabBtn-dashboard" class="border-b-2 border-era-gold text-era-navy font-bold py-4 px-1 text-sm flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i data-lucide="gauge" class="w-4 h-4"></i> Project Dashboard
+                </button>
+                <button onclick="switchTab('registry')" id="tabBtn-registry" class="border-b-2 border-transparent text-slate-500 hover:text-era-navy font-medium py-4 px-1 text-sm flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i data-lucide="map-pin" class="w-4 h-4"></i> Control Registry
+                </button>
+                <button onclick="switchTab('traverse')" id="tabBtn-traverse" class="border-b-2 border-transparent text-slate-500 hover:text-era-navy font-medium py-4 px-1 text-sm flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i data-lucide="git-commit" class="w-4 h-4"></i> Traverse Adjuster
+                </button>
+                <button onclick="switchTab('alignment')" id="tabBtn-alignment" class="border-b-2 border-transparent text-slate-500 hover:text-era-navy font-medium py-4 px-1 text-sm flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i data-lucide="git-merge" class="w-4 h-4"></i> Road Alignment
+                </button>
+                <button onclick="switchTab('reports')" id="tabBtn-reports" class="border-b-2 border-transparent text-slate-500 hover:text-era-navy font-medium py-4 px-1 text-sm flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i data-lucide="file-check" class="w-4 h-4"></i> Reporting & QA
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Workspace Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 lg:px-8">
+
+        <!-- ==================== TAB: DASHBOARD ==================== -->
+        <section id="tabContent-dashboard" class="space-y-6">
+            
+            <!-- Real-time KPI Dashboard Widgets -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
+                    <div class="p-3 bg-era-navy/5 text-era-navy rounded-lg">
+                        <i data-lucide="database" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-semibold text-slate-400 uppercase">Registered CP</span>
+                        <span class="text-2xl font-extrabold text-era-navy" id="kpi-totalCP">0</span>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
+                    <div class="p-3 bg-amber-50 text-era-gold rounded-lg border border-amber-100">
+                        <i data-lucide="shield-check" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-semibold text-slate-400 uppercase">Primary (Class I)</span>
+                        <span class="text-2xl font-extrabold text-era-navy" id="kpi-classI">0</span>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
+                    <div class="p-3 bg-blue-50 text-era-blue rounded-lg">
+                        <i data-lucide="compass" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-semibold text-slate-400 uppercase">Network Span</span>
+                        <span class="text-2xl font-extrabold text-era-navy" id="kpi-networkLength">0.00 km</span>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
+                    <div class="p-3 bg-rose-50 text-rose-600 rounded-lg border border-rose-100">
+                        <i data-lucide="alert-circle" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-semibold text-slate-400 uppercase">Out of Tolerance</span>
+                        <span class="text-2xl font-extrabold text-rose-600 animate-pulse" id="kpi-outTolerance">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spatial Mapping Split Interface -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Geodetic View Tabs (Leaflet vs CAD Plot) -->
+                <div class="lg:col-span-8 bg-white rounded-xl shadow-md border border-slate-100 overflow-hidden flex flex-col">
+                    <div class="bg-slate-50 border-b border-slate-100 px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-era-navy flex items-center gap-2">
+                            <i data-lucide="map" class="w-4 h-4 text-era-gold"></i> Live Network Visualization Viewports
+                        </h2>
+                        <div class="flex bg-slate-200/60 p-1 rounded-lg self-start">
+                            <button onclick="setMapTab('leaflet')" id="mapTabBtn-leaflet" class="px-3 py-1 text-xs font-bold rounded-md bg-white text-era-navy shadow-sm transition-all flex items-center gap-1">
+                                <i data-lucide="globe" class="w-3.5 h-3.5"></i> Leaflet Geographic Map
+                            </button>
+                            <button onclick="setMapTab('canvas')" id="mapTabBtn-canvas" class="px-3 py-1 text-xs font-medium rounded-md text-slate-600 hover:text-era-navy transition-all flex items-center gap-1">
+                                <i data-lucide="activity" class="w-3.5 h-3.5"></i> Local CAD Canvas Plot
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Viewport Panels -->
+                    <div class="p-4 flex-grow relative bg-slate-900" style="min-height: 420px;">
+                        <!-- Geographic Leaflet Map View -->
+                        <div id="leafletMapPanel" class="absolute inset-0 p-4 bg-slate-100">
+                            <div id="leafletMap"></div>
+                        </div>
+
+                        <!-- CAD Grid Canvas View -->
+                        <div id="canvasPanel" class="absolute inset-0 hidden p-4 flex flex-col justify-between">
+                            <div class="relative w-full h-full bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
+                                <canvas id="gridCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                                <!-- Map overlay when empty -->
+                                <div id="noDataOverlay" class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center text-slate-400 gap-2 z-20">
+                                    <i data-lucide="info" class="w-8 h-8 text-era-gold"></i>
+                                    <span class="text-sm font-semibold">No registered points to plot</span>
+                                    <span class="text-xs text-slate-500">Go to "Control Registry" tab to add coordinates.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live ERA Compliance Audit Stream -->
+                <div class="lg:col-span-4 bg-white rounded-xl shadow-md border border-slate-100 overflow-hidden flex flex-col">
+                    <div class="bg-slate-50 border-b border-slate-100 px-5 py-4">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-era-navy flex items-center gap-2">
+                            <i data-lucide="clipboard-signature" class="w-4 h-4 text-era-gold"></i> ERA Quality Compliance Stream
+                        </h2>
+                    </div>
+                    <div class="p-4 flex-grow overflow-y-auto max-h-[400px] space-y-3" id="complianceAlertsStream">
+                        <!-- Content Stream populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Geodetic Inverse Calculator Module -->
+            <div class="bg-white rounded-xl shadow-md border border-slate-100 overflow-hidden">
+                <div class="bg-slate-50 border-b border-slate-100 px-5 py-4 flex justify-between items-center">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-era-navy flex items-center gap-2">
+                        <i data-lucide="drafting-compass" class="w-4 h-4 text-era-gold"></i> Geodetic Inverse Profile Calculator
+                    </h2>
+                    <span class="text-[10px] bg-era-gold/10 text-era-darkGold font-bold px-2 py-1 rounded">2D/3D Inverse Geometry</span>
+                </div>
+                <div class="p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <div class="md:col-span-4 space-y-4">
+                        <p class="text-xs text-slate-500 leading-relaxed">
+                            Select any two registered benchmarks inside the database. The system calculates geodetic inverse outputs (Horizontal distance, vertical angle profile, grade slope and azimuth bearing).
+                        </p>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">From Station A</label>
+                            <select id="inverseA" onchange="calculateInverse()" class="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-era-blue/20 focus:border-era-blue bg-white">
+                                <option value="">-- Select Point A --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">To Station B</label>
+                            <select id="inverseB" onchange="calculateInverse()" class="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-era-blue/20 focus:border-era-blue bg-white">
+                                <option value="">-- Select Point B --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Output dashboard cards -->
+                    <div class="md:col-span-8 bg-slate-50 border border-slate-200 rounded-xl p-6 grid grid-cols-2 gap-6">
+                        <div class="border-r border-slate-200 pr-4">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Horizontal Grid Distance</span>
+                            <span class="text-2xl font-extrabold text-era-navy" id="invDistance">0.000 m</span>
+                        </div>
+                        <div class="pl-4">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Azimuth Bearing (DMS)</span>
+                            <span class="text-2xl font-extrabold text-era-navy" id="invBearing">00° 00' 00"</span>
+                        </div>
+                        <div class="border-r border-slate-200 pr-4 pt-4 border-t border-slate-200">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Vertical Delta (dH)</span>
+                            <span class="text-2xl font-extrabold text-era-navy" id="invDeltaH">0.000 m</span>
+                        </div>
+                        <div class="pl-4 pt-4 border-t border-slate-200">
+                            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Grid Gradient %</span>
+                            <span class="text-2xl font-extrabold text-era-navy" id="invSlope">0.00 %</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ==================== TAB: CONTROL REGISTRY ==================== -->
+        <section id="tabContent-registry" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Left Register Form Container -->
+            <div class="lg:col-span-4 bg-white rounded-xl shadow-md border border-slate-100 overflow-hidden self-start">
+                <div class="bg-slate-50 border-b border-slate-100 px-5 py-4 flex justify-between items-center">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-era-navy flex items-center gap-2">
+                        <i data-lucide="map-pin-plus" class="w-4 h-4 text-era-gold"></i> Register Benchmark
+                    </h2>
+                    <button onclick="loadHawassaSamples()" class="text-xs font-bold text-era-blue hover:text-era-gold transition-colors flex items-center gap-1">
+                        <i data-lucide="database-backup" class="w-3.5 h-3.5"></i> Load Samples
+                    </button>
+                </div>
+                
+                <div class="p-6 space-y-4">
+                    <!-- Standard survey fields -->
+                    <div>
+                        <label for="pointId" class="block text-xs font-bold text-slate-600 mb-1">Point Identifier</label>
+                        <input type="text" id="pointId" placeholder="e.g. BM-01, CP-101" class="w-full px-3.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-era-blue/20 focus:border-era-blue transition-all uppercase font-medium">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="easting" class="block text-xs font-bold text-slate-600 mb-1">Easting (m)</label>
+                            <input type="number" step="0.0001" id="easting" placeholder="e.g. 445210.125" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-era-blue/20 focus:border-era-blue font-mono">
+                        </div>
+                        <div>
+                            <label for="northing" class="block text-xs font-bold text-slate-600 mb-1">Northing (m)</label>
+                            <input type="number" step="0.0001" id="northing" placeholder="e.g. 780120.450" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-era-blue/20 focus:border-era-blue font-mono">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="elevation" class="block text-xs font-bold text-slate-600 mb-1">Elevation (m)</label>
+                            <input type="number" step="0.0001" id="elevation" placeholder="e.g. 1712.350" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-era-blue/20 focus:border-era-blue font-mono">
+                        </div>
+                        <div>
+                            <label for="controlClass" class="block text-xs font-bold text-slate-600 mb-1">Control Class</label>
+                            <select id="controlClass" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white">
+                                <option value="Primary (Class I)">Primary (Class I)</option>
+                                <option value="Secondary (Class II)">Secondary (Class II)</option>
