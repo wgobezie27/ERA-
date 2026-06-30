@@ -1,0 +1,2316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ERA Survey Automation Platform — Engineering Dashboard</title>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Leaflet Map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- FontAwesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<!-- Google Font -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+  * { font-family: 'Inter', sans-serif; }
+  body { background: #f8fafc; transition: background-color 0.3s ease; }
+  .sidebar { transition: width 0.3s ease; }
+  .sidebar.collapsed { width: 70px; }
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .brand-text,
+  .sidebar.collapsed .section-title { display: none; }
+  .sidebar.collapsed .nav-item { justify-content: center; }
+  .nav-item { transition: all 0.2s ease; cursor: pointer; }
+  .nav-item:hover { background: rgba(255,255,255,0.08); transform: translateX(3px); }
+  .nav-item.active { background: linear-gradient(90deg, #0ea5e9, #0284c7); border-left: 4px solid #f59e0b; }
+  .card-hover { transition: all 0.3s ease; }
+  .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
+  .kpi-gradient-1 { background: linear-gradient(135deg, #0ea5e9, #0369a1); }
+  .kpi-gradient-2 { background: linear-gradient(135deg, #10b981, #047857); }
+  .kpi-gradient-3 { background: linear-gradient(135deg, #f59e0b, #b45309); }
+  .kpi-gradient-4 { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+  .pulse-dot { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .login-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
+  .glass { backdrop-filter: blur(20px); background: rgba(255,255,255,0.1); }
+  .view-panel { display: none; }
+  .view-panel.active { display: block; }
+  
+  /* Custom Log Grid Plot Styling */
+  .grid-canvas { border: 1px solid #cbd5e1; background: #ffffff; border-radius: 8px; }
+</style>
+</head>
+<body class="text-slate-800 antialiased">
+
+<!-- CUSTOM TOAST/NOTIFICATION BOX (Replacing browser alerts) -->
+<div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-3 bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-2xl max-w-sm">
+  <div class="p-1 rounded-full bg-sky-500 text-slate-900 text-xs w-6 h-6 flex items-center justify-center font-bold" id="toast-icon">✓</div>
+  <div>
+    <h4 class="font-bold text-sm" id="toast-title">Success</h4>
+    <p class="text-xs text-slate-300" id="toast-message">Operation completed successfully.</p>
+  </div>
+</div>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="fixed inset-0 z-50 login-bg flex items-center justify-center p-4">
+  <div class="absolute inset-0 opacity-15" style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22none%22 stroke=%22rgba(14,165,233,0.3)%22 stroke-width=%221%22/></svg>');"></div>
+  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-slate-100">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 mb-4 shadow-xl">
+        <i class="fas fa-road text-white text-3xl"></i>
+      </div>
+      <h1 class="text-2xl font-black text-slate-800 tracking-tight">ERA Survey Automation</h1>
+      <p class="text-slate-500 text-sm mt-1 font-medium">Ethiopian Roads Administration Platform</p>
+    </div>
+    <form onsubmit="handleLogin(event)" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Username</label>
+        <div class="relative">
+          <i class="fas fa-user absolute left-3 top-3.5 text-slate-400"></i>
+          <input type="text" id="username" value="admin" required
+            class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition"/>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
+        <div class="relative">
+          <i class="fas fa-lock absolute left-3 top-3.5 text-slate-400"></i>
+          <input type="password" id="password" value="admin" required
+            class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition"/>
+        </div>
+      </div>
+      <div class="flex items-center justify-between text-sm">
+        <label class="flex items-center text-slate-600 cursor-pointer"><input type="checkbox" checked class="mr-2 rounded text-sky-500 focus:ring-sky-400"/> Remember me</label>
+        <a href="#" class="text-sky-600 font-semibold hover:underline">Forgot password?</a>
+      </div>
+      <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-sky-600 to-blue-700 text-white font-bold rounded-xl hover:shadow-lg transition-all transform hover:-translate-y-0.5">
+        <i class="fas fa-sign-in-alt mr-2"></i> Sign In to Dashboard
+      </button>
+    </form>
+    <div class="relative my-6 flex items-center justify-center">
+      <hr class="w-full border-slate-200"/>
+      <span class="absolute bg-white px-4 text-xs font-semibold text-slate-400 uppercase">Support Portal</span>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <button onclick="showToast('Assistance Requested', 'Support desk has been alerted. We will call you shortly.', 'info')" class="text-xs py-2 bg-slate-50 hover:bg-slate-100 rounded-lg font-medium text-slate-600 flex items-center justify-center gap-1.5"><i class="fas fa-phone"></i> Contact Tech</button>
+      <button onclick="showToast('Help Documentation', 'System manuals are available in the storage folder.', 'info')" class="text-xs py-2 bg-slate-50 hover:bg-slate-100 rounded-lg font-medium text-slate-600 flex items-center justify-center gap-1.5"><i class="fas fa-book"></i> User Guide</button>
+    </div>
+    <p class="text-center text-xs text-slate-400 mt-6 font-semibold">v2.4.0 · © 2026 ERA Engineering Division</p>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="app" class="hidden flex h-screen overflow-hidden">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="sidebar w-64 bg-slate-900 text-slate-100 flex flex-col shadow-2xl z-30 flex-shrink-0">
+    <div class="p-4 border-b border-slate-800 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 flex items-center justify-center shadow-lg flex-shrink-0">
+        <i class="fas fa-road text-white text-lg"></i>
+      </div>
+      <div class="brand-text">
+        <h1 class="font-extrabold text-sm tracking-wide text-white uppercase">ERA Platform</h1>
+        <p class="text-[10px] text-sky-400 font-bold uppercase tracking-widest">Survey & Quality Control</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto scrollbar-thin py-4 px-2 space-y-1">
+      <p class="section-title px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Overview</p>
+      <a onclick="switchView('dashboard')" id="nav-dashboard" class="nav-item active flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold">
+        <i class="fas fa-tachometer-alt w-5 text-sky-400"></i><span class="nav-label">Dashboard</span>
+      </a>
+      <a onclick="switchView('projects')" id="nav-projects" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-map-marked-alt w-5 text-sky-400"></i><span class="nav-label">Master Projects</span>
+      </a>
+
+      <p class="section-title px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-4 mb-1.5">Alignment & Field</p>
+      <a onclick="switchView('survey')" id="nav-survey" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-crosshairs w-5 text-emerald-400"></i><span class="nav-label">COGO Coordinate Geometry</span>
+      </a>
+      <a onclick="switchView('gnss')" id="nav-gnss" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-satellite-dish w-5 text-emerald-400"></i><span class="nav-label">Traverse Adjustment</span>
+      </a>
+      <a onclick="switchView('alignment')" id="nav-alignment" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-route w-5 text-emerald-400"></i><span class="nav-label">Alignment / Curve Design</span>
+      </a>
+      <a onclick="switchView('earthwork')" id="nav-earthwork" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-mountain w-5 text-emerald-400"></i><span class="nav-label">Earthwork & Volumes</span>
+      </a>
+
+      <p class="section-title px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-4 mb-1.5">Material Laboratories</p>
+      <a onclick="switchView('soil')" id="nav-soil" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-flask w-5 text-amber-500"></i><span class="nav-label">Soils & Proctor Curve</span>
+      </a>
+      <a onclick="switchView('aggregate')" id="nav-aggregate" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-vial w-5 text-amber-500"></i><span class="nav-label">Grading Sieve Curve</span>
+      </a>
+      <a onclick="switchView('bitumen')" id="nav-bitumen" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-oil-can w-5 text-amber-500"></i><span class="nav-label">Bitumen / Marshall Design</span>
+      </a>
+      <a onclick="switchView('concrete')" id="nav-concrete" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-cubes w-5 text-amber-500"></i><span class="nav-label">Concrete Compressive</span>
+      </a>
+
+      <p class="section-title px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-4 mb-1.5">Project Management</p>
+      <a onclick="switchView('boq')" id="nav-boq" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-file-invoice-dollar w-5 text-indigo-400"></i><span class="nav-label">BOQ & IPC Interim Certs</span>
+      </a>
+      <a onclick="switchView('daily')" id="nav-daily" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-clipboard-list w-5 text-indigo-400"></i><span class="nav-label">Daily Reports & Log</span>
+      </a>
+
+      <p class="section-title px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-4 mb-1.5">Administration</p>
+      <a onclick="switchView('users')" id="nav-users" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-users-cog w-5 text-slate-400"></i><span class="nav-label">User Management</span>
+      </a>
+      <a onclick="switchView('settings')" id="nav-settings" class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white">
+        <i class="fas fa-cog w-5 text-slate-400"></i><span class="nav-label">System Settings</span>
+      </a>
+    </nav>
+
+    <!-- SIDEBAR FOOTER USER PROFILE -->
+    <div class="p-4 border-t border-slate-800 bg-slate-950 flex items-center gap-3">
+      <img src="https://i.pravatar.cc/40?img=12" alt="Chief Surveyor Profile" class="w-10 h-10 rounded-xl border-2 border-sky-500 shadow" onerror="this.src='https://placehold.co/40x40/0284c7/ffffff?text=WG'"/>
+      <div class="brand-text flex-1 min-w-0">
+        <p class="text-sm font-bold truncate text-white">Wondwosen G.</p>
+        <p class="text-[10px] text-slate-400 truncate font-semibold">Chief Super. Surveyor</p>
+      </div>
+      <button onclick="logout()" class="brand-text text-slate-400 hover:text-red-400 p-2 hover:bg-slate-800 rounded-lg transition" title="Logout">
+        <i class="fas fa-sign-out-alt"></i>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- TOP BAR -->
+    <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-3.5 flex items-center justify-between z-10">
+      <div class="flex items-center gap-4">
+        <button onclick="toggleSidebar()" class="text-slate-600 hover:text-slate-900 p-1 bg-slate-50 rounded-lg hover:bg-slate-100 transition">
+          <i class="fas fa-bars text-lg"></i>
+        </button>
+        <div>
+          <h2 id="page-title" class="text-xl font-extrabold text-slate-900 tracking-tight">Dashboard Overview</h2>
+          <p id="page-subtitle" class="text-xs text-slate-500 font-medium">Friday, June 26, 2026 · Welcome back, Wondwosen</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="relative hidden md:block">
+          <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+          <input type="text" placeholder="Quick Search Points, Tests or Chainages..."
+            class="pl-9 pr-4 py-2 w-72 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition"/>
+        </div>
+        <button onclick="showToast('Notifications Sync', 'Check system log for 3 new aggregate samples submitted from Adama.', 'info')" class="relative p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition">
+          <i class="fas fa-bell"></i>
+          <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full pulse-dot border-2 border-white"></span>
+        </button>
+        <button onclick="showToast('Secure Messages', 'Incoming message from ERA Adama regional lab technician.', 'info')" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition">
+          <i class="fas fa-envelope"></i>
+        </button>
+        <button onclick="toggleTheme()" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition" title="Toggle Visual Style">
+          <i class="fas fa-adjust"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+      <!-- ================== 1. VIEW: DASHBOARD ================== -->
+      <div id="view-dashboard" class="view-panel active space-y-6">
+        <!-- KPI CARDS -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="card-hover kpi-gradient-1 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div class="absolute -right-3 -bottom-3 opacity-10 text-7xl"><i class="fas fa-project-diagram"></i></div>
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-sky-100">Supervised Projects</p>
+                <h3 class="text-3xl font-black mt-1" id="dash-project-count">5</h3>
+                <p class="text-xs text-sky-200 mt-2 font-semibold"><i class="fas fa-arrow-up"></i> Active construction zones</p>
+              </div>
+              <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shadow-inner">
+                <i class="fas fa-project-diagram text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="card-hover kpi-gradient-2 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div class="absolute -right-3 -bottom-3 opacity-10 text-7xl"><i class="fas fa-tasks"></i></div>
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-emerald-100">Overall Executed</p>
+                <h3 class="text-3xl font-black mt-1">68.4%</h3>
+                <p class="text-xs text-emerald-200 mt-2 font-semibold"><i class="fas fa-arrow-up"></i> +2.1% Ahead of aggregate curve</p>
+              </div>
+              <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shadow-inner">
+                <i class="fas fa-tasks text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="card-hover kpi-gradient-3 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div class="absolute -right-3 -bottom-3 opacity-10 text-7xl"><i class="fas fa-crosshairs"></i></div>
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-amber-100">Survey Coordinates</p>
+                <h3 class="text-3xl font-black mt-1">12,847</h3>
+                <p class="text-xs text-amber-200 mt-2 font-semibold"><i class="fas fa-check-circle"></i> 99.2% Verified Benchmarks</p>
+              </div>
+              <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shadow-inner">
+                <i class="fas fa-crosshairs text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="card-hover kpi-gradient-4 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div class="absolute -right-3 -bottom-3 opacity-10 text-7xl"><i class="fas fa-flask"></i></div>
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-purple-100">Lab Compliance</p>
+                <h3 class="text-3xl font-black mt-1">3,214</h3>
+                <p class="text-xs text-purple-200 mt-2 font-semibold"><i class="fas fa-check"></i> 96.1% Soil & Bitumen Pass</p>
+              </div>
+              <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shadow-inner">
+                <i class="fas fa-vial text-xl"></i>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CHARTS ROW -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="font-extrabold text-slate-800 tracking-tight">Project Progress — Cumulative S-Curve</h3>
+                <p class="text-xs text-slate-500 font-medium">Planned Schedule Baseline vs Field Surveys Actual (% complete)</p>
+              </div>
+              <select class="text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:ring-2 focus:ring-sky-500 transition outline-none">
+                <option>All Sections</option>
+                <option>Addis-Adama Section</option>
+                <option>Hawassa-Dilla Section</option>
+              </select>
+            </div>
+            <div class="relative h-72">
+              <canvas id="sCurveChart"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-200 flex flex-col justify-between">
+            <div>
+              <h3 class="font-extrabold text-slate-800 tracking-tight">Earthwork Distribution</h3>
+              <p class="text-xs text-slate-500 font-medium mb-4">Cumulative Excavation & Embankment Volumes (m³)</p>
+              <div class="relative h-44">
+                <canvas id="earthworkChart"></canvas>
+              </div>
+            </div>
+            <div class="space-y-2 text-sm mt-4 pt-4 border-t border-slate-100">
+              <div class="flex justify-between"><span class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-lg bg-sky-500"></span>Cut Area Excavation</span><span class="font-bold text-slate-700">245,320 m³</span></div>
+              <div class="flex justify-between"><span class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-lg bg-emerald-500"></span>Embankment Fill</span><span class="font-bold text-slate-700">198,750 m³</span></div>
+              <div class="flex justify-between"><span class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded-lg bg-amber-500"></span>Selected Borrow Fill</span><span class="font-bold text-slate-700">87,400 m³</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MAP + LAB RESULTS -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="font-extrabold text-slate-800 tracking-tight">Active Alignment GIS Map</h3>
+                <p class="text-xs text-slate-500 font-medium">Verified benchmarks, continuous centerlines & structural components</p>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="zoomToEthiopia()" class="text-xs font-bold px-3 py-1.5 bg-sky-50 text-sky-700 rounded-lg hover:bg-sky-100 transition"><i class="fas fa-sync mr-1"></i>Center Map</button>
+              </div>
+            </div>
+            <div id="map" class="rounded-xl h-80 border border-slate-200 relative z-10 shadow-inner"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
+            <h3 class="font-extrabold text-slate-800 tracking-tight">Laboratory Compliance Rate</h3>
+            <p class="text-xs text-slate-500 font-medium mb-4">Passing Rate for Core Compliance Checklists (%)</p>
+            <div class="relative h-64">
+              <canvas id="labChart"></canvas>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================== 2. VIEW: MASTER PROJECTS ================== -->
+      <div id="view-projects" class="view-panel space-y-6">
+        <div class="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-800">Master Road Contracts</h3>
+            <p class="text-xs text-slate-500">Add, edit, and audit supervisory project scopes and details</p>
+          </div>
+          <button onclick="openNewProjectModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md transition">
+            <i class="fas fa-plus"></i> Register New Project
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+              <span class="text-xs font-black uppercase text-slate-600">Active Supervision List</span>
+              <input type="text" id="projectSearchInput" onkeyup="filterProjectTable()" placeholder="Filter routes..." class="px-3 py-1 text-xs border border-slate-200 rounded-lg outline-none"/>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left" id="projectTable">
+                <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Code</th>
+                    <th class="px-4 py-3">Route Profile</th>
+                    <th class="px-4 py-3">Contract Length</th>
+                    <th class="px-4 py-3">Completion Status</th>
+                    <th class="px-4 py-3">Audit</th>
+                    <th class="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs text-slate-600">
+                  <!-- JS Injectable project rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">Active Route Details</h4>
+            <div class="space-y-3" id="selected-project-details">
+              <p class="text-xs text-slate-500">Select a project from the table to inspect details.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 3. VIEW: COGO COORDINATE GEOMETRY ================== -->
+      <div id="view-survey" class="view-panel space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- INVERSE CALCULATOR -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div>
+              <h3 class="font-extrabold text-slate-800">Inverse Calculator (COGO)</h3>
+              <p class="text-xs text-slate-500">Calculate distance, bearings, and coordinate deltas between points</p>
+            </div>
+            <div class="space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 uppercase">Point A Easting (m)</label>
+                  <input type="number" id="cogo-e1" value="482345.12" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 uppercase">Point A Northing (m)</label>
+                  <input type="number" id="cogo-n1" value="992456.78" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 uppercase">Point B Easting (m)</label>
+                  <input type="number" id="cogo-e2" value="482780.45" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 uppercase">Point B Northing (m)</label>
+                  <input type="number" id="cogo-n2" value="993120.34" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+              </div>
+              <button onclick="calculateInverse()" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow transition">
+                <i class="fas fa-calculator mr-1"></i> Compute Inverse
+              </button>
+            </div>
+            <div class="p-4 bg-slate-50 rounded-xl space-y-2 border border-slate-100" id="inverse-results">
+              <div class="flex justify-between text-xs"><span class="text-slate-500">Horizontal Distance:</span><span class="font-bold text-slate-800">0.00 m</span></div>
+              <div class="flex justify-between text-xs"><span class="text-slate-500">Bearing:</span><span class="font-bold text-slate-800">00°00'00"</span></div>
+              <div class="flex justify-between text-xs"><span class="text-slate-500">Azimuth:</span><span class="font-bold text-slate-800">0.00°</span></div>
+              <div class="flex justify-between text-xs"><span class="text-slate-500">Delta E (ΔE):</span><span class="font-bold text-slate-800">0.00 m</span></div>
+              <div class="flex justify-between text-xs"><span class="text-slate-500">Delta N (ΔN):</span><span class="font-bold text-slate-800">0.00 m</span></div>
+            </div>
+          </div>
+
+          <!-- VECTOR DIAGRAM CANVAS -->
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+            <div class="mb-4 flex justify-between items-center">
+              <div>
+                <h3 class="font-extrabold text-slate-800">COGO Vector Workspace</h3>
+                <p class="text-xs text-slate-500">Graphical representation of input coordinates and computed vectors</p>
+              </div>
+              <button onclick="clearCogoCanvas()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg transition"><i class="fas fa-eraser mr-1"></i>Reset Workspace</button>
+            </div>
+            <div class="flex-1 flex items-center justify-center bg-slate-50 rounded-xl p-2 relative">
+              <canvas id="cogoCanvas" class="w-full h-72 grid-canvas"></canvas>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================== 4. VIEW: TRAVERSE ADJUSTMENT ================== -->
+      <div id="view-gnss" class="view-panel space-y-6">
+        <div class="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-800">Traverse Network adjustment</h3>
+            <p class="text-xs text-slate-500">Run Bowditch (Compass Rule) corrections on closed loop field traverses</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="addTraverseRow()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition">
+              <i class="fas fa-plus"></i> Add Traverse Segment
+            </button>
+            <button onclick="runBowditchAdjustment()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow transition">
+              <i class="fas fa-cog"></i> Adjust Network (Bowditch)
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+              <span class="text-xs font-black uppercase text-slate-600">Observation Data Log</span>
+              <span class="text-xs font-semibold text-sky-700">Adama Section 4 - Traverse Loop</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left" id="traverseTable">
+                <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Station</th>
+                    <th class="px-4 py-3">Bearing (D.MS)</th>
+                    <th class="px-4 py-3">Measured Distance (m)</th>
+                    <th class="px-4 py-3">Corrected Easting (m)</th>
+                    <th class="px-4 py-3">Corrected Northing (m)</th>
+                    <th class="px-4 py-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs">
+                  <!-- Preset/Dynamic stations loaded via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">Bowditch Adjustment Report</h4>
+              <div class="space-y-4 mt-3" id="traverse-report">
+                <p class="text-xs text-slate-500">Click "Adjust Network" to run Bowditch rule adjustments on loop traverse.</p>
+              </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-100 relative h-48 bg-slate-50 rounded-xl overflow-hidden p-2">
+              <canvas id="traverseCanvas" class="w-full h-full grid-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 5. VIEW: HORIZONTAL CURVE DESIGN ================== -->
+      <div id="view-alignment" class="view-panel space-y-6">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-800">Horizontal Alignment Design Tool</h3>
+            <p class="text-xs text-slate-500">Compute geometric elements for circular road curves on highway tangents</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <label class="text-xs font-semibold text-slate-600">Select Project:</label>
+            <select id="curve-project-select" class="px-3 py-1.5 border border-slate-200 text-xs rounded-xl focus:ring-2 focus:ring-sky-500 transition outline-none">
+              <option>Addis-Adama Expressway</option>
+              <option>Hawassa-Dilla Hwy</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">Design Constraints</h4>
+            <div class="space-y-4">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="text-xs font-semibold text-slate-600">Design Radius R (m)</label>
+                  <span id="radius-val" class="text-xs font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-md">400</span>
+                </div>
+                <input type="range" id="curve-radius" min="150" max="1000" step="10" value="400" oninput="calculateCurve()" class="w-full accent-sky-600"/>
+              </div>
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="text-xs font-semibold text-slate-600">Deflection Angle I (Degrees)</label>
+                  <span id="deflection-val" class="text-xs font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-md">45°</span>
+                </div>
+                <input type="range" id="curve-deflection" min="10" max="120" step="1" value="45" oninput="calculateCurve()" class="w-full accent-sky-600"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Intersection Point PI Chainage</label>
+                <div class="flex gap-2">
+                  <span class="bg-slate-100 px-3 py-2 text-slate-600 text-xs font-bold rounded-lg border border-slate-200">CH</span>
+                  <input type="number" id="curve-pi-chainage" value="12450" onchange="calculateCurve()" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2.5 text-xs">
+              <div class="flex justify-between"><span class="text-slate-500">Tangent Distance T:</span><span id="res-curve-t" class="font-bold">0.00 m</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Curve Length L:</span><span id="res-curve-l" class="font-bold">0.00 m</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Long Chord LC:</span><span id="res-curve-lc" class="font-bold">0.00 m</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">External Distance E:</span><span id="res-curve-e" class="font-bold">0.00 m</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Mid-Ordinate M:</span><span id="res-curve-m" class="font-bold">0.00 m</span></div>
+              <div class="flex justify-between pt-2 border-t border-slate-200 font-bold"><span class="text-slate-700">Point of Curve PC:</span><span id="res-curve-pc" class="text-sky-700">CH 0+00.00</span></div>
+              <div class="flex justify-between font-bold"><span class="text-slate-700">Point of Tangent PT:</span><span id="res-curve-pt" class="text-sky-700">CH 0+00.00</span></div>
+            </div>
+          </div>
+
+          <!-- CURVE CANVAS SCHEMATIC -->
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h3 class="font-extrabold text-slate-800">Interactive Alignment Curve Plot</h3>
+              <p class="text-xs text-slate-500">Vector representation of Tangent lines, Circular arc, PC, PT, and intersection components</p>
+            </div>
+            <div class="flex-1 flex items-center justify-center bg-slate-50 rounded-xl p-2 relative">
+              <canvas id="alignmentCanvas" class="w-full h-80 grid-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 6. VIEW: EARTHWORK & VOLUMES ================== -->
+      <div id="view-earthwork" class="view-panel space-y-6">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-800">Earthwork Cross-Section Simulator</h3>
+            <p class="text-xs text-slate-500">Design road formation templates and calculate cut/fill cross-section areas</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="calculateEarthwork()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow transition">
+              <i class="fas fa-calculator mr-1"></i> Run Calculations
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">Formation Parameters</h4>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Road Base Width W (m)</label>
+                <input type="number" id="ew-road-width" value="10" onchange="calculateEarthwork()" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+              </div>
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="text-xs font-semibold text-slate-600">Center Cut (-) or Fill (+) Height (m)</label>
+                  <span id="ew-depth-val" class="text-xs font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-md">+1.20</span>
+                </div>
+                <input type="range" id="ew-depth" min="-4.0" max="4.0" step="0.1" value="1.2" oninput="calculateEarthwork()" class="w-full accent-sky-600"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Embankment Side Slope (S:1)</label>
+                <input type="number" id="ew-side-slope" value="1.5" onchange="calculateEarthwork()" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Length of Road Segment (m)</label>
+                <input type="number" id="ew-distance" value="50" onchange="calculateEarthwork()" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+              </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2 text-xs">
+              <div class="flex justify-between"><span class="text-slate-500">Classification:</span><span id="res-ew-class" class="font-bold text-emerald-600">FILL / EMBANKMENT</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Cross-Section Area:</span><span id="res-ew-area" class="font-bold text-slate-800">14.16 m²</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Slope Width (each side):</span><span id="res-ew-slope-w" class="font-bold text-slate-800">1.80 m</span></div>
+              <div class="flex justify-between pt-2 border-t border-slate-200 font-bold text-sm"><span class="text-slate-700">Estimated Volume:</span><span id="res-ew-volume" class="text-sky-700">708.00 m³</span></div>
+            </div>
+          </div>
+
+          <!-- GRAPHICS RENDERING CANVAS -->
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h3 class="font-extrabold text-slate-800">Template Cross-Section Rendering</h3>
+              <p class="text-xs text-slate-500">Dynamic cross-section visualization representing natural surface vs design formation levels</p>
+            </div>
+            <div class="flex-1 flex items-center justify-center bg-slate-50 rounded-xl p-2 relative">
+              <canvas id="earthworkCanvas" class="w-full h-80 grid-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 7. VIEW: SOILS & PROCTOR CURVE ================== -->
+      <div id="view-soil" class="view-panel space-y-6">
+        <div class="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-800">Soils & Compaction Laboratory</h3>
+            <p class="text-xs text-slate-500">Analyze Standard/Modified Proctor tests to determine MDD and OMC</p>
+          </div>
+          <button onclick="fitProctorCurve()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow transition">
+            <i class="fas fa-chart-line mr-1"></i> Fit Proctor Curve & Optimize
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">Moisture - Density Observations</h4>
+            <div class="space-y-3">
+              <table class="w-full text-xs text-left" id="proctor-table">
+                <thead>
+                  <tr class="border-b border-slate-200 text-slate-500">
+                    <th class="py-2">Point</th>
+                    <th class="py-2">Moisture Content (%)</th>
+                    <th class="py-2">Dry Density (g/cm³)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Point 1</td><td><input type="number" id="proc-mc-1" value="8.0" step="0.1" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td><td><input type="number" id="proc-dd-1" value="1.85" step="0.01" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td></tr>
+                  <tr><td>Point 2</td><td><input type="number" id="proc-mc-2" value="10.2" step="0.1" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td><td><input type="number" id="proc-dd-2" value="1.98" step="0.01" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td></tr>
+                  <tr><td>Point 3</td><td><input type="number" id="proc-mc-3" value="12.5" step="0.1" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td><td><input type="number" id="proc-dd-3" value="2.04" step="0.01" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td></tr>
+                  <tr><td>Point 4</td><td><input type="number" id="proc-mc-4" value="14.8" step="0.1" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td><td><input type="number" id="proc-dd-4" value="1.95" step="0.01" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td></tr>
+                  <tr><td>Point 5</td><td><input type="number" id="proc-mc-5" value="16.5" step="0.1" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td><td><input type="number" id="proc-dd-5" value="1.82" step="0.01" class="w-20 px-2 py-1 border border-slate-200 rounded outline-none"/></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2 text-xs">
+              <div class="flex justify-between"><span class="text-slate-500">Optimum Moisture Content (OMC):</span><span id="res-proc-omc" class="font-extrabold text-slate-800">12.1 %</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Max Dry Density (MDD):</span><span id="res-proc-mdd" class="font-extrabold text-slate-800">2.04 g/cm³</span></div>
+            </div>
+          </div>
+
+          <!-- PROCTOR CHART CANVAS -->
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h3 class="font-extrabold text-slate-800">Compaction Curve Plot</h3>
+              <p class="text-xs text-slate-500">Quadratic regression of moisture-density points mapping the optimum dry density</p>
+            </div>
+            <div class="flex-1 flex items-center justify-center bg-slate-50 rounded-xl p-2 relative">
+              <canvas id="proctorCanvas" class="w-full h-80 grid-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 8. VIEW: GRADING SIEVE CURVE ================== -->
+      <div id="view-aggregate" class="view-panel space-y-6">
+        <div class="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-800">Aggregate Sieve Analysis & Grading</h3>
+            <p class="text-xs text-slate-500">Calculate cumulative pass rate and check compliance on log scale distribution curve</p>
+          </div>
+          <button onclick="calculateSieveGradation()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow transition">
+            <i class="fas fa-tasks mr-1"></i> Analyze Grading Compliance
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">Grain Size Retention Data</h4>
+            <div class="space-y-3 max-h-96 overflow-y-auto">
+              <table class="w-full text-xs text-left" id="sieve-table">
+                <thead>
+                  <tr class="border-b border-slate-200 text-slate-500">
+                    <th class="py-2">Sieve Size (mm)</th>
+                    <th class="py-2">Weight Retained (g)</th>
+                    <th class="py-2">Specs (Min-Max)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Filled dynamic log sieves by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- GRADATION CHART CANVAS -->
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+            <div class="mb-4">
+              <h3 class="font-extrabold text-slate-800">Gradation Logarithmic Sieve Curve</h3>
+              <p class="text-xs text-slate-500">Aggregate percent passing compared with standard ERA lower and upper envelope specifications</p>
+            </div>
+            <div class="flex-1 flex items-center justify-center bg-slate-50 rounded-xl p-2 relative">
+              <canvas id="sieveCanvas" class="w-full h-80 grid-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 9. VIEW: BITUMEN / MARSHALL DESIGN ================== -->
+      <div id="view-bitumen" class="view-panel space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div>
+              <h3 class="font-extrabold text-slate-800">Marshall Stability & Flow Form</h3>
+              <p class="text-xs text-slate-500">Input mechanical parameters for compacted asphalt samples</p>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Specimen Identification Code</label>
+                <input type="text" id="bit-id" value="BIT-ADAMA-092" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Bitumen Content (%)</label>
+                  <input type="number" id="bit-content" value="5.2" step="0.1" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Asphalt Grade</label>
+                  <select id="bit-grade" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500">
+                    <option>60/70 Pen</option>
+                    <option>80/100 Pen</option>
+                    <option>PMB (Polymer Modified)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Measured Stability (kN)</label>
+                  <input type="number" id="bit-stability" value="9.85" step="0.1" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Measured Flow (mm)</label>
+                  <input type="number" id="bit-flow" value="3.10" step="0.1" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+              </div>
+              <button onclick="calculateMarshall()" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow transition">
+                <i class="fas fa-check-circle mr-1"></i> Verify Stability Spec
+              </button>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h3 class="font-extrabold text-slate-800 border-b border-slate-100 pb-2">Verified Marshall Design database</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left" id="marshallTable">
+                <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Sample ID</th>
+                    <th class="px-4 py-3">Bitumen (%)</th>
+                    <th class="px-4 py-3">Stability (kN)</th>
+                    <th class="px-4 py-3">Flow (mm)</th>
+                    <th class="px-4 py-3">Corrected Load</th>
+                    <th class="px-4 py-3 text-right">Verification Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs text-slate-600">
+                  <!-- JS Injectable bitumen tests -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 10. VIEW: CONCRETE COMPRESSIVE ================== -->
+      <div id="view-concrete" class="view-panel space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div>
+              <h3 class="font-extrabold text-slate-800">Concrete Strength Logger</h3>
+              <p class="text-xs text-slate-500">Calculate design stresses on cast concrete cylinders & cubes</p>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Design Class</label>
+                <select id="conc-class" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500">
+                  <option value="25">C25 (Target: 25 MPa)</option>
+                  <option value="30">C30 (Target: 30 MPa)</option>
+                  <option value="40">C40 (Target: 40 MPa)</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Curing Age (Days)</label>
+                  <input type="number" id="conc-age" value="28" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Fail Load (kN)</label>
+                  <input type="number" id="conc-load" value="540" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Section Width (mm)</label>
+                  <input type="number" id="conc-width" value="150" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Section Height (mm)</label>
+                  <input type="number" id="conc-height" value="150" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+              </div>
+              <button onclick="calculateConcreteStrength()" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow transition">
+                <i class="fas fa-cubes mr-1"></i> Compute Stress Area
+              </button>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h3 class="font-extrabold text-slate-800 border-b border-slate-100 pb-2">Compressive Strength Quality Log</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left" id="concreteTable">
+                <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Specimen Ref</th>
+                    <th class="px-4 py-3">Concrete Class</th>
+                    <th class="px-4 py-3">Age (Days)</th>
+                    <th class="px-4 py-3">Load (kN)</th>
+                    <th class="px-4 py-3">Compressive Stress</th>
+                    <th class="px-4 py-3 text-right">Result status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs text-slate-600">
+                  <!-- Injectable dynamic concrete tests -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 11. VIEW: BOQ & IPC INTERIM CERTS ================== -->
+      <div id="view-boq" class="view-panel space-y-6">
+        <div class="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-800">Interim Payment Certificates (IPC) & BOQ Ledger</h3>
+            <p class="text-xs text-slate-500">Track current period volumes and compile structural road valuation certs</p>
+          </div>
+          <button onclick="compileIpcCertificate()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow transition">
+            <i class="fas fa-file-invoice mr-1"></i> Generate & Seal IPC Certificate
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+              <span class="text-xs font-black uppercase text-slate-600">Contract Item Quantities</span>
+              <span class="text-xs font-bold text-sky-700">Project: Addis-Adama Expressway</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left" id="boqTable">
+                <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Item Ref</th>
+                    <th class="px-4 py-3">Description</th>
+                    <th class="px-4 py-3">Unit</th>
+                    <th class="px-4 py-3">Contract Rate (ETB)</th>
+                    <th class="px-4 py-3">Prev Qty</th>
+                    <th class="px-4 py-3">This Period Qty</th>
+                    <th class="px-4 py-3 text-right">Total Cumulative (ETB)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs text-slate-600">
+                  <!-- Loaded BOQ items by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">IPC Summary Valuation</h4>
+              <div class="space-y-4 mt-3" id="ipc-summary-box">
+                <!-- IPC Compiled calculations will update here dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 12. VIEW: DAILY REPORTS & LOG ================== -->
+      <div id="view-daily" class="view-panel space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div>
+              <h3 class="font-extrabold text-slate-800">Register Daily Field Diary</h3>
+              <p class="text-xs text-slate-500">Log survey execution progress, weather patterns, and equipment running statuses</p>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Weather Classification</label>
+                <select id="diary-weather" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500">
+                  <option>Sunny / Clear (Optimal conditions)</option>
+                  <option>Heavy Rain (Adverse soil moisture)</option>
+                  <option>Windy / Dust Storms</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Starting Chainage</label>
+                  <input type="text" id="diary-ch-start" value="12+400" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Ending Chainage</label>
+                  <input type="text" id="diary-ch-end" value="12+950" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Key Supervisory Note</label>
+                <textarea id="diary-note" rows="3" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500" placeholder="E.g., Subgrade CBR testing approved from CH 12+450 to 12+700. Fill operation starting."></textarea>
+              </div>
+              <button onclick="saveDailyReport()" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow transition">
+                <i class="fas fa-save mr-1"></i> Save Daily Field Entry
+              </button>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h3 class="font-extrabold text-slate-800 border-b border-slate-100 pb-2">Historical Supervisory Diaries</h3>
+            <div class="space-y-3 max-h-96 overflow-y-auto" id="dailyReportsContainer">
+              <!-- Loaded entries dynamically by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================== 13. VIEW: USER MANAGEMENT ================== -->
+      <div id="view-users" class="view-panel space-y-6">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-800">User & Personnel Directory</h3>
+            <p class="text-xs text-slate-500">Administer platform credentials, roles, and laboratory access levels</p>
+          </div>
+          <button onclick="showToast('Personnel Management', 'Invite form is disabled in read-only demo profile.', 'warning')" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition">
+            <i class="fas fa-plus"></i> Add New Field Engineer
+          </button>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <table class="w-full text-left">
+            <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+              <tr>
+                <th class="px-5 py-3.5">User</th>
+                <th class="px-5 py-3.5">Assigned Role</th>
+                <th class="px-5 py-3.5">Supervisory Location</th>
+                <th class="px-5 py-3.5">Permission Group</th>
+                <th class="px-5 py-3.5 text-right">Action Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs text-slate-600">
+              <tr>
+                <td class="px-5 py-4 font-semibold text-slate-900">Wondwosen Gobezie</td>
+                <td class="px-5 py-4 text-sky-700 font-bold">Chief Supervisory Surveyor</td>
+                <td class="px-5 py-4">Addis-Adama Section</td>
+                <td class="px-5 py-4"><span class="px-2 py-1 text-[10px] font-bold bg-sky-50 text-sky-700 rounded-lg">Administrator</span></td>
+                <td class="px-5 py-4 text-right"><span class="px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-lg">Active</span></td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-semibold text-slate-900">Tadesse G.</td>
+                <td class="px-5 py-4">Soil Laboratory Technician</td>
+                <td class="px-5 py-4">Hawassa Main Lab</td>
+                <td class="px-5 py-4"><span class="px-2 py-1 text-[10px] font-bold bg-slate-100 text-slate-700 rounded-lg">Lab Writer</span></td>
+                <td class="px-5 py-4 text-right"><span class="px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-lg">Active</span></td>
+              </tr>
+              <tr>
+                <td class="px-5 py-4 font-semibold text-slate-900">Aster M.</td>
+                <td class="px-5 py-4">Field Assistant Surveyor</td>
+                <td class="px-5 py-4">Bahir Dar Section</td>
+                <td class="px-5 py-4"><span class="px-2 py-1 text-[10px] font-bold bg-slate-100 text-slate-700 rounded-lg">Field Surveyor</span></td>
+                <td class="px-5 py-4 text-right"><span class="px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-lg">Active</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================== 14. VIEW: SYSTEM SETTINGS ================== -->
+      <div id="view-settings" class="view-panel space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h3 class="font-extrabold text-slate-800 border-b border-slate-100 pb-2">Geodetic Coordinate Systems</h3>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Coordinate Reference System (CRS)</label>
+                <select class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500">
+                  <option>Adindan / UTM zone 37N (Ethiopia Baseline)</option>
+                  <option>WGS 84 / UTM zone 37N (Universal standard)</option>
+                  <option>WGS 84 / UTM zone 38N (Eastern region)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Linear Unit Format</label>
+                <select class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500">
+                  <option>Metric (meters / m³)</option>
+                  <option>Imperial (feet / yard³)</option>
+                </select>
+              </div>
+              <button onclick="showToast('Settings Saved', 'Global Geodetic CRS parameters synchronized.', 'success')" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow transition">
+                <i class="fas fa-save mr-1"></i> Apply Reference System Settings
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <h3 class="font-extrabold text-slate-800 border-b border-slate-100 pb-2">Interim Retention Policy</h3>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Retention Percentage (%)</label>
+                <input type="number" value="10" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Withholding Tax (WHT %)</label>
+                <input type="number" value="2" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-sky-500"/>
+              </div>
+              <button onclick="showToast('Contract Terms Saved', 'Valuation parameters successfully applied.', 'success')" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow transition">
+                <i class="fas fa-save mr-1"></i> Apply Valuation Rules
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <footer class="text-center text-xs text-slate-500 py-6 border-t border-slate-200">
+        ERA Survey Automation Platform v2.4.0 · © 2026 Ethiopian Roads Administration · Developed & Optimized for Infrastructure Supervision
+      </footer>
+    </div>
+  </div>
+</div>
+
+<!-- NEW PROJECT MODAL -->
+<div id="newProjectModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+  <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-lg p-6 relative">
+    <button onclick="closeNewProjectModal()" class="absolute right-4 top-4 text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+    <h3 class="text-lg font-extrabold text-slate-900 mb-4">Register New Highway Project</h3>
+    <div class="space-y-4 text-xs text-slate-700">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Project Code</label>
+          <input type="text" id="np-code" placeholder="ERA-UG-050" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none"/>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Route Profile</label>
+          <input type="text" id="np-name" placeholder="Adama - Metahara" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none"/>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Length (km)</label>
+          <input type="number" id="np-length" placeholder="85.5" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none"/>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Starting Progress (%)</label>
+          <input type="number" id="np-progress" placeholder="5" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none"/>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Latitude</label>
+          <input type="number" id="np-lat" value="8.5" step="0.1" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none"/>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Longitude</label>
+          <input type="number" id="np-lng" value="39.2" step="0.1" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none"/>
+        </div>
+      </div>
+      <button onclick="saveNewProject()" class="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition shadow">
+        Save & Initialize Alignment Points
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================== GLOBAL DATA & STATE ================== */
+const appState = {
+  theme: 'light',
+  projects: [
+    { code: 'ERA-UG-001', route: 'Addis–Adama Exp.', length: 94.5, progress: 82, status: 'On Track', lat: 8.90, lng: 39.00, desc: 'Four-lane asphalt pavement construction comprising rigid concrete structure interfaces at grade intersections.' },
+    { code: 'ERA-UG-014', route: 'Hawassa–Dilla', length: 72.3, progress: 65, status: 'Normal', lat: 6.85, lng: 38.45, desc: 'Standard asphalt concrete surfacing, rehabilitation and localized soil subgrade stabilization operations.' },
+    { code: 'ERA-UG-027', route: 'Bahir Dar–Gondar', length: 118.0, progress: 48, status: 'Delayed', lat: 11.60, lng: 37.40, desc: 'Double bituminous surface treatment facing active mountainous alignment cut-and-fill segments.' },
+    { code: 'ERA-UG-033', route: 'Mekelle–Adigrat', length: 85.7, progress: 91, status: 'On Track', lat: 13.49, lng: 39.47, desc: 'Final asphalt surface course leveling, curb construction and geodetic coordinate baseline signoff.' },
+    { code: 'ERA-UG-041', route: 'Dire Dawa–Harar', length: 56.2, progress: 22, status: 'Critical', lat: 9.59, lng: 41.85, desc: 'Complex drainage structure construction. Soil Proctor tests under review due to elevated water tables.' }
+  ],
+  selectedProjectId: 'ERA-UG-001',
+  traverseStations: [
+    { name: 'STN-1', bearing: '45.1530', distance: 125.45, easting: 482100.00, northing: 991200.00 },
+    { name: 'STN-2', bearing: '135.2245', distance: 84.32, easting: 0, northing: 0 },
+    { name: 'STN-3', bearing: '225.0812', distance: 118.90, easting: 0, northing: 0 },
+    { name: 'STN-4', bearing: '315.4018', distance: 91.15, easting: 0, northing: 0 }
+  ],
+  bitumenTests: [
+    { id: 'BIT-ADAMA-092', mc: 5.2, stability: 9.85, flow: 3.10, spec: 'Pass' },
+    { id: 'BIT-HAWAS-011', mc: 4.8, stability: 8.42, flow: 3.82, spec: 'Pass' },
+    { id: 'BIT-GOND-045', mc: 5.5, stability: 7.20, flow: 4.15, spec: 'Fail' }
+  ],
+  concreteTests: [
+    { ref: 'CON-B15-01', design: 'C25', age: 28, load: 540, stress: 24.0, status: 'Pass' },
+    { ref: 'CON-B15-02', design: 'C30', age: 28, load: 710, stress: 31.55, status: 'Pass' },
+    { ref: 'CON-S20-03', design: 'C25', age: 7, load: 380, stress: 16.88, status: 'Pass (7d Target)' }
+  ],
+  boqItems: [
+    { ref: '1.10', desc: 'Clearing and grubbing of highway right-of-way', unit: 'ha', rate: 45000, prevQty: 85, thisQty: 4.5 },
+    { ref: '2.05', desc: 'Excavation in common soil cut segments', unit: 'm³', rate: 185, prevQty: 124500, thisQty: 12500 },
+    { ref: '2.12', desc: 'Subgrade preparation and compaction verification', unit: 'm²', rate: 92, prevQty: 245000, thisQty: 18000 },
+    { ref: '3.04', desc: 'Crushed aggregate base course subbase formation', unit: 'm³', rate: 480, prevQty: 48000, thisQty: 6200 },
+    { ref: '4.02', desc: 'Superpave asphalt concrete surface paving (50mm)', unit: 'm²', rate: 650, prevQty: 110000, thisQty: 14500 }
+  ],
+  dailyReports: [
+    { date: 'June 26, 2026', weather: 'Sunny / Clear', chainage: 'CH 12+400 - 12+950', note: 'Conducted structural concrete pouring at box culvert interface CH 12+680. Field compaction testing verified on 5 locations.' },
+    { date: 'June 25, 2026', weather: 'Heavy Rain (Adverse soil moisture)', chainage: 'CH 11+200 - 11+500', note: 'Field operations halted due to prolonged rainstorm. Soil subgrade moisture levels verified high; grading rescheduled.' }
+  ]
+};
+
+let map = null;
+let sCurveChart = null;
+let earthworkChart = null;
+let labChart = null;
+
+/* ================== APPLICATION BOOTSTRAP ================== */
+window.onload = function() {
+  // Let's configure default data
+  renderProjects();
+  renderBitumenTable();
+  renderConcreteTable();
+  renderBoqTable();
+  renderDailyReports();
+  loadSieveDefaults();
+  
+  // Calculate default views
+  setTimeout(calculateCurve, 100);
+  setTimeout(calculateEarthwork, 150);
+  setTimeout(fitProctorCurve, 200);
+  setTimeout(calculateSieveGradation, 250);
+};
+
+/* ================== GENERAL UTILITIES ================== */
+function showToast(title, msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  const icon = document.getElementById('toast-icon');
+  document.getElementById('toast-title').innerText = title;
+  document.getElementById('toast-message').innerText = msg;
+  
+  if (type === 'success') {
+    icon.innerHTML = '✓';
+    icon.className = 'p-1 rounded-full bg-emerald-500 text-slate-900 text-xs w-6 h-6 flex items-center justify-center font-bold';
+  } else if (type === 'warning') {
+    icon.innerHTML = '⚠';
+    icon.className = 'p-1 rounded-full bg-amber-500 text-slate-900 text-xs w-6 h-6 flex items-center justify-center font-bold';
+  } else {
+    icon.innerHTML = 'i';
+    icon.className = 'p-1 rounded-full bg-sky-500 text-slate-900 text-xs w-6 h-6 flex items-center justify-center font-bold';
+  }
+  
+  toast.className = 'fixed bottom-5 right-5 z-50 transform translate-y-0 opacity-100 transition-all duration-300 flex items-center gap-3 bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-2xl max-w-sm';
+  setTimeout(() => {
+    toast.className = 'fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-3 bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-2xl max-w-sm';
+  }, 4000);
+}
+
+function toggleTheme() {
+  appState.theme = appState.theme === 'light' ? 'dark' : 'light';
+  if (appState.theme === 'dark') {
+    document.body.className = "text-slate-100 bg-slate-900 antialiased";
+    showToast('Dark Mode Active', 'Visual theme switched to dark layout.', 'info');
+  } else {
+    document.body.className = "text-slate-800 bg-slate-50 antialiased";
+    showToast('Light Mode Active', 'Visual theme switched to light layout.', 'info');
+  }
+}
+
+/* ================== VIEW ROUTER ================== */
+function switchView(viewId) {
+  // Update view panel classes
+  document.querySelectorAll('.view-panel').forEach(el => el.classList.remove('active'));
+  const activePanel = document.getElementById(`view-${viewId}`);
+  if (activePanel) activePanel.classList.add('active');
+
+  // Update active sidebar nav item
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const activeNavItem = document.getElementById(`nav-${viewId}`);
+  if (activeNavItem) activeNavItem.classList.add('active');
+
+  // Dynamic header updates
+  const headerTitle = document.getElementById('page-title');
+  const headerSubtitle = document.getElementById('page-subtitle');
+  
+  const titles = {
+    dashboard: ["Dashboard Overview", "Real-time key statistics & geodetic GIS network status"],
+    projects: ["Master Road Contracts", "Registered structural highway supervision projects"],
+    survey: ["Coordinate Geometry (COGO)", "Calculate bearing, coordinate projection & inversing"],
+    gnss: ["Bowditch Traverse Adjustment", "Correct loop network linear misclosures"],
+    alignment: ["Highway Alignment & Curve Design", "Circular curves parameters & horizontal geometry"],
+    earthwork: ["Earthwork Formations & Volumes", "Simulate highway templates & excavation volumes"],
+    soil: ["Soils & Compaction Laboratory", "Determine maximum dry density & optimum moisture content"],
+    aggregate: ["Aggregate Grading & Gradation Log", "Check cumulative sieve pass compliance limits"],
+    bitumen: ["Marshall Stability Design", "Analyze bituminous asphalt compliance indicators"],
+    concrete: ["Concrete Compressive Strength", "Verify structural concrete failure parameters"],
+    boq: ["Bill of Quantities & Interim Payment Certificates", "Value completed physical sections"],
+    daily: ["Daily Supervisory Field Log", "Log structural operations diaries"],
+    users: ["User Credentials Directory", "Administer system login authorities"],
+    settings: ["System & Geodetic Configuration", "Global coordinate systems & retention bounds"]
+  };
+
+  if (titles[viewId]) {
+    headerTitle.innerText = titles[viewId][0];
+    headerSubtitle.innerText = `${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} · ${titles[viewId][1]}`;
+  }
+
+  // Refresh maps or canvas grids if needed
+  if (viewId === 'dashboard' && map) {
+    setTimeout(() => map.invalidateSize(), 150);
+  }
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+/* ================== LOGIN WORKFLOW ================== */
+function handleLogin(e) {
+  e.preventDefault();
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  showToast('Welcome Back', 'Successfully authorized with Chief Surveyor credentials.', 'success');
+  
+  // Launch charts and maps
+  setTimeout(initDashboardCharts, 100);
+  setTimeout(initGISMap, 150);
+}
+
+function logout() {
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  showToast('Session Closed', 'Logged out securely.', 'info');
+}
+
+/* ================== DASHBOARD VISUALIZATIONS ================== */
+function initDashboardCharts() {
+  // S-Curve Line Chart
+  const ctxSCurve = document.getElementById('sCurveChart').getContext('2d');
+  sCurveChart = new Chart(ctxSCurve, {
+    type: 'line',
+    data: {
+      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+      datasets: [
+        { label: 'Baseline Progress Baseline (%)', data: [5, 12, 20, 30, 42, 55, 67, 78, 86, 92, 96, 100], borderColor: '#64748b', borderDash: [6, 4], backgroundColor: 'transparent', tension: 0.3, borderWidth: 2 },
+        { label: 'Field Certified Actual (%)', data: [4, 11, 19, 28, 40, 52, 68, 74, null, null, null, null], borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,0.1)', tension: 0.3, borderWidth: 3, fill: true }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+      scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } }
+    }
+  });
+
+  // Earthwork Distribution Doughnut
+  const ctxEarth = document.getElementById('earthworkChart').getContext('2d');
+  earthworkChart = new Chart(ctxEarth, {
+    type: 'doughnut',
+    data: {
+      labels: ['Cut Common', 'Embankment Fill', 'Borrow Selected'],
+      datasets: [{ data: [245320, 198750, 87400], backgroundColor: ['#38bdf8', '#10b981', '#f59e0b'], borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // Laboratory Radar/Bar chart
+  const ctxLab = document.getElementById('labChart').getContext('2d');
+  labChart = new Chart(ctxLab, {
+    type: 'bar',
+    data: {
+      labels: ['CBR Soil', 'Proctor Comp.', 'ACV Agg.', 'LA Abrasion', 'Stability', 'Concrete Comp.'],
+      datasets: [{ label: 'Pass Rate (%)', data: [96, 98, 94, 92, 89, 97], backgroundColor: '#a78bfa', borderRadius: 6 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } }
+    }
+  });
+}
+
+function initGISMap() {
+  // Setup Leaflet map centered in Addis Ababa
+  map = L.map('map').setView([9.01, 38.75], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(map);
+
+  // Load project points dynamically
+  appState.projects.forEach(p => {
+    const color = p.progress >= 75 ? '#10b981' : p.progress >= 50 ? '#0ea5e9' : p.progress >= 30 ? '#f59e0b' : '#ef4444';
+    const marker = L.circleMarker([p.lat, p.lng], {
+      radius: 10,
+      fillColor: color,
+      color: '#fff',
+      weight: 2,
+      fillOpacity: 0.9
+    }).addTo(map);
+    
+    marker.bindPopup(`
+      <div class="text-xs">
+        <h4 class="font-bold text-slate-900">${p.route} (${p.code})</h4>
+        <p class="text-slate-500 mt-1">Supervised Length: <b>${p.length} km</b></p>
+        <p class="font-semibold text-sky-700 mt-1">Field Progress: ${p.progress}%</p>
+      </div>
+    `);
+  });
+
+  // Sample corridor design alignment
+  const coordinates = [
+    [9.02, 38.74], [8.90, 39.00], [8.55, 39.27], [8.40, 39.40]
+  ];
+  L.polyline(coordinates, { color: '#0ea5e9', weight: 4, dashArray: '5, 8' }).addTo(map);
+}
+
+function zoomToEthiopia() {
+  if (map) {
+    map.setView([9.01, 38.75], 6);
+    showToast('Map Centered', 'Zoomed baseline to geodetic center.', 'info');
+  }
+}
+
+/* ================== MASTER PROJECTS OPERATIONS ================== */
+function renderProjects() {
+  const tbody = document.querySelector('#projectTable tbody');
+  tbody.innerHTML = '';
+  
+  appState.projects.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-slate-50 cursor-pointer transition';
+    tr.onclick = () => showProjectDetails(p.code);
+    
+    let badgeColor = 'bg-slate-100 text-slate-700';
+    if (p.status === 'On Track') badgeColor = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+    else if (p.status === 'Normal') badgeColor = 'bg-sky-50 text-sky-700 border border-sky-200';
+    else if (p.status === 'Delayed') badgeColor = 'bg-amber-50 text-amber-700 border border-amber-200';
+    else if (p.status === 'Critical') badgeColor = 'bg-red-50 text-red-700 border border-red-200';
+
+    tr.innerHTML = `
+      <td class="px-4 py-3.5 font-bold text-sky-700">${p.code}</td>
+      <td class="px-4 py-3.5 font-semibold text-slate-800">${p.route}</td>
+      <td class="px-4 py-3.5">${p.length} km</td>
+      <td class="px-4 py-3.5">
+        <div class="flex items-center gap-2">
+          <div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-sky-500" style="width: ${p.progress}%"></div></div>
+          <span class="font-bold text-[10px]">${p.progress}%</span>
+        </div>
+      </td>
+      <td class="px-4 py-3.5"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor}">${p.status}</span></td>
+      <td class="px-4 py-3.5 text-right"><button class="text-slate-400 hover:text-sky-600"><i class="fas fa-eye"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  document.getElementById('dash-project-count').innerText = appState.projects.length;
+}
+
+function filterProjectTable() {
+  const input = document.getElementById('projectSearchInput');
+  const filter = input.value.toUpperCase();
+  const table = document.getElementById('projectTable');
+  const tr = table.getElementsByTagName('tr');
+
+  for (let i = 1; i < tr.length; i++) {
+    const tdRoute = tr[i].getElementsByTagName('td')[1];
+    if (tdRoute) {
+      const txtValue = tdRoute.textContent || tdRoute.innerText;
+      tr[i].style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+    }       
+  }
+}
+
+function showProjectDetails(code) {
+  const p = appState.projects.find(x => x.code === code);
+  if (!p) return;
+  
+  appState.selectedProjectId = code;
+  const container = document.getElementById('selected-project-details');
+  container.innerHTML = `
+    <div class="space-y-3">
+      <div class="flex justify-between items-center"><span class="text-xs text-slate-500">Project Reference:</span><span class="font-bold text-slate-900">${p.code}</span></div>
+      <div class="flex justify-between items-center"><span class="text-xs text-slate-500">Route Name:</span><span class="font-bold text-slate-900">${p.route}</span></div>
+      <div class="flex justify-between items-center"><span class="text-xs text-slate-500">Contract Length:</span><span class="font-bold text-slate-900">${p.length} km</span></div>
+      <div class="flex justify-between items-center"><span class="text-xs text-slate-500">Geodetic Location:</span><span class="font-bold text-sky-700 text-xs">${p.lat.toFixed(2)}° N, ${p.lng.toFixed(2)}° E</span></div>
+      <hr class="border-slate-100"/>
+      <p class="text-xs text-slate-600 font-medium leading-relaxed">${p.desc}</p>
+      <div class="pt-2">
+        <button onclick="zoomToProjectCoords(${p.lat}, ${p.lng})" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition">
+          <i class="fas fa-map-marker-alt"></i> Pan GIS Map to Alignment
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function zoomToProjectCoords(lat, lng) {
+  if (map) {
+    switchView('dashboard');
+    map.setView([lat, lng], 11);
+    showToast('Panning Active', `Focusing map coordinates ${lat.toFixed(4)}, ${lng.toFixed(4)}`, 'info');
+  }
+}
+
+function openNewProjectModal() {
+  document.getElementById('newProjectModal').classList.remove('hidden');
+}
+
+function closeNewProjectModal() {
+  document.getElementById('newProjectModal').classList.add('hidden');
+}
+
+function saveNewProject() {
+  const code = document.getElementById('np-code').value || 'ERA-UG-050';
+  const name = document.getElementById('np-name').value || 'Unnamed Highway';
+  const length = parseFloat(document.getElementById('np-length').value) || 50;
+  const progress = parseInt(document.getElementById('np-progress').value) || 0;
+  const lat = parseFloat(document.getElementById('np-lat').value) || 8.5;
+  const lng = parseFloat(document.getElementById('np-lng').value) || 39.2;
+  
+  appState.projects.push({
+    code, route: name, length, progress, status: 'Normal', lat, lng,
+    desc: 'Newly initiated contract alignment. Geodetic points and structural layouts pending final baseline verification.'
+  });
+  
+  renderProjects();
+  closeNewProjectModal();
+  showToast('Project Registered', `New corridor contract ${code} has been indexed.`, 'success');
+}
+
+/* ================== COGO INVERSE CALCULATIONS ================== */
+function calculateInverse() {
+  const e1 = parseFloat(document.getElementById('cogo-e1').value);
+  const n1 = parseFloat(document.getElementById('cogo-n1').value);
+  const e2 = parseFloat(document.getElementById('cogo-e2').value);
+  const n2 = parseFloat(document.getElementById('cogo-n2').value);
+  
+  const de = e2 - e1;
+  const dn = n2 - n1;
+  
+  const distance = Math.sqrt(de*de + dn*dn);
+  let azimuthDeg = Math.atan2(de, dn) * (180 / Math.PI);
+  if (azimuthDeg < 0) azimuthDeg += 360;
+  
+  // Format to degrees, minutes, seconds
+  const degrees = Math.floor(azimuthDeg);
+  const minutesDecimal = (azimuthDeg - degrees) * 60;
+  const minutes = Math.floor(minutesDecimal);
+  const seconds = Math.round((minutesDecimal - minutes) * 60);
+  
+  const resBox = document.getElementById('inverse-results');
+  resBox.innerHTML = `
+    <div class="flex justify-between text-xs"><span class="text-slate-500">Horizontal Distance:</span><span class="font-extrabold text-sky-700">${distance.toFixed(3)} m</span></div>
+    <div class="flex justify-between text-xs"><span class="text-slate-500">Bearing:</span><span class="font-extrabold text-slate-800">${degrees}° ${minutes}' ${seconds}"</span></div>
+    <div class="flex justify-between text-xs"><span class="text-slate-500">Azimuth:</span><span class="font-extrabold text-slate-800">${azimuthDeg.toFixed(4)}°</span></div>
+    <div class="flex justify-between text-xs"><span class="text-slate-500">Delta E (ΔE):</span><span class="font-extrabold text-slate-800">${de.toFixed(3)} m</span></div>
+    <div class="flex justify-between text-xs"><span class="text-slate-500">Delta N (ΔN):</span><span class="font-extrabold text-slate-800">${dn.toFixed(3)} m</span></div>
+  `;
+  
+  plotCogoVector(e1, n1, e2, n2, de, dn);
+}
+
+function plotCogoVector(e1, n1, e2, n2, de, dn) {
+  const canvas = document.getElementById('cogoCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  // Set dimensions
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight || 280;
+  
+  ctx.clearRect(0,0, canvas.width, canvas.height);
+  
+  // Plotting elements
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  
+  // Grid Lines
+  ctx.strokeStyle = '#f1f5f9';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < canvas.width; i += 30) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+  }
+  for (let j = 0; j < canvas.height; j += 30) {
+    ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke();
+  }
+  
+  // Base Axis
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
+  
+  // Draw vector line
+  const scale = Math.min(canvas.width, canvas.height) / (Math.max(Math.abs(de), Math.abs(dn)) * 2.5 || 1);
+  const px1 = cx - (de * scale) / 2;
+  const py1 = cy + (dn * scale) / 2;
+  const px2 = cx + (de * scale) / 2;
+  const py2 = cy - (dn * scale) / 2;
+  
+  // Draw Line
+  ctx.strokeStyle = '#0ea5e9';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
+  
+  // Point A Node
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath(); ctx.arc(px1, py1, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 9px Inter';
+  ctx.fillText('STN-A', px1 + 10, py1 - 5);
+  
+  // Point B Node
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath(); ctx.arc(px2, py2, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillText('STN-B', px2 + 10, py2 - 5);
+  
+  showToast('Vector Workspace Compiled', 'Deltas transformed and projected onto coordinate viewport.', 'success');
+}
+
+function clearCogoCanvas() {
+  const canvas = document.getElementById('cogoCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0, canvas.width, canvas.height);
+  showToast('Workspace Cleared', 'COGO graphical state refreshed.', 'info');
+}
+
+/* ================== TRAVERSE ADJUSTMENT CALCULATIONS ================== */
+function loadTraverseLoop() {
+  const tbody = document.querySelector('#traverseTable tbody');
+  tbody.innerHTML = '';
+  
+  appState.traverseStations.forEach((s, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="px-4 py-3"><input type="text" value="${s.name}" class="w-16 px-1.5 py-1 border border-slate-200 rounded text-xs text-center font-bold"/></td>
+      <td class="px-4 py-3"><input type="number" step="0.0001" value="${s.bearing}" class="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs text-center"/></td>
+      <td class="px-4 py-3"><input type="number" step="0.01" value="${s.distance}" class="w-20 px-1.5 py-1 border border-slate-200 rounded text-xs text-center"/></td>
+      <td class="px-4 py-3 font-semibold text-slate-800" id="tr-east-${idx}">${s.easting ? s.easting.toFixed(2) : '-'}</td>
+      <td class="px-4 py-3 font-semibold text-slate-800" id="tr-north-${idx}">${s.northing ? s.northing.toFixed(2) : '-'}</td>
+      <td class="px-4 py-3"><button onclick="deleteTraverseRow(this)" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+loadTraverseLoop();
+
+function addTraverseRow() {
+  const tbody = document.querySelector('#traverseTable tbody');
+  const tr = document.createElement('tr');
+  const nextIdx = tbody.children.length + 1;
+  tr.innerHTML = `
+    <td class="px-4 py-3"><input type="text" value="STN-${nextIdx}" class="w-16 px-1.5 py-1 border border-slate-200 rounded text-xs text-center font-bold"/></td>
+    <td class="px-4 py-3"><input type="number" step="0.0001" value="45.0000" class="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs text-center"/></td>
+    <td class="px-4 py-3"><input type="number" step="0.01" value="100.00" class="w-20 px-1.5 py-1 border border-slate-200 rounded text-xs text-center"/></td>
+    <td class="px-4 py-3 font-semibold text-slate-800">-</td>
+    <td class="px-4 py-3 font-semibold text-slate-800">-</td>
+    <td class="px-4 py-3"><button onclick="deleteTraverseRow(this)" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function deleteTraverseRow(btn) {
+  btn.closest('tr').remove();
+}
+
+function runBowditchAdjustment() {
+  const rows = document.querySelectorAll('#traverseTable tbody tr');
+  let currentEasting = 482100.00;
+  let currentNorthing = 991200.00;
+  
+  let traversePoints = [{ e: currentEasting, n: currentNorthing }];
+  let totalLength = 0;
+  let unadjustedPoints = [{ e: currentEasting, n: currentNorthing }];
+  
+  // Calculate unadjusted traverse components
+  rows.forEach((row, idx) => {
+    const inputs = row.querySelectorAll('input');
+    const bearingVal = parseFloat(inputs[1].value);
+    const dist = parseFloat(inputs[2].value);
+    
+    totalLength += dist;
+    
+    // Convert D.MS to Decimal Degrees
+    const deg = Math.floor(bearingVal);
+    const minutes = Math.floor((bearingVal - deg) * 100);
+    const seconds = ((bearingVal - deg) * 100 - minutes) * 100;
+    const decimalDegrees = deg + (minutes / 60) + (seconds / 3600);
+    const rad = decimalDegrees * (Math.PI / 180);
+    
+    const dE = dist * Math.sin(rad);
+    const dN = dist * Math.cos(rad);
+    
+    currentEasting += dE;
+    currentNorthing += dN;
+    
+    unadjustedPoints.push({ e: currentEasting, n: currentNorthing, dist: dist });
+  });
+  
+  // Linear Misclosure
+  const misclosureE = currentEasting - 482100.00;
+  const misclosureN = currentNorthing - 991200.00;
+  const totalMisclosure = Math.sqrt(misclosureE*misclosureE + misclosureN*misclosureN);
+  const precisionRatio = totalLength / totalMisclosure;
+  
+  // Correct points using Bowditch Rule (Compass Rule)
+  let cumulativeDist = 0;
+  let adjustedPoints = [{ e: 482100.00, n: 991200.00 }];
+  
+  rows.forEach((row, idx) => {
+    const unadj = unadjustedPoints[idx + 1];
+    cumulativeDist += unadj.dist;
+    
+    // Correction factors
+    const corrE = - (cumulativeDist / totalLength) * misclosureE;
+    const corrN = - (cumulativeDist / totalLength) * misclosureN;
+    
+    const adjE = unadj.e + corrE;
+    const adjN = unadj.n + corrN;
+    
+    adjustedPoints.push({ e: adjE, n: adjN });
+    
+    row.querySelector(`[id^="tr-east-"]`).innerText = adjE.toFixed(3);
+    row.querySelector(`[id^="tr-north-"]`).innerText = adjN.toFixed(3);
+  });
+  
+  // Compile final summary reports
+  const reportDiv = document.getElementById('traverse-report');
+  reportDiv.innerHTML = `
+    <div class="space-y-2 text-xs">
+      <div class="flex justify-between"><span class="text-slate-500">Traverse Network Length:</span><span class="font-bold">${totalLength.toFixed(2)} m</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Linear Misclosure ΔE:</span><span class="font-bold text-red-600">${misclosureE.toFixed(4)} m</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Linear Misclosure ΔN:</span><span class="font-bold text-red-600">${misclosureN.toFixed(4)} m</span></div>
+      <div class="flex justify-between border-t border-slate-100 pt-1"><span class="text-slate-500 font-semibold">Total Error Vector:</span><span class="font-extrabold text-red-600">${totalMisclosure.toFixed(4)} m</span></div>
+      <div class="flex justify-between"><span class="text-slate-500 font-semibold">Network Precision Ratio:</span><span class="font-extrabold text-emerald-600">1 : ${Math.round(precisionRatio).toLocaleString()}</span></div>
+    </div>
+  `;
+  
+  plotTraverseVisual(adjustedPoints, unadjustedPoints);
+  showToast('Network Adjusted', `Bowditch corrections compiled successfully. Precision: 1:${Math.round(precisionRatio).toLocaleString()}`, 'success');
+}
+
+function plotTraverseVisual(adj, unadj) {
+  const canvas = document.getElementById('traverseCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight || 180;
+  ctx.clearRect(0,0, canvas.width, canvas.height);
+  
+  // Extents mapping
+  const allPoints = [...adj, ...unadj];
+  const eValues = allPoints.map(p => p.e);
+  const nValues = allPoints.map(p => p.n);
+  
+  const minE = Math.min(...eValues); const maxE = Math.max(...eValues);
+  const minN = Math.min(...nValues); const maxN = Math.max(...nValues);
+  
+  const rangeE = (maxE - minE) || 1;
+  const rangeN = (maxN - minN) || 1;
+  const scale = Math.min(canvas.width - 40, canvas.height - 40) / Math.max(rangeE, rangeN);
+  
+  const mapCoords = (e, n) => {
+    const x = 20 + (e - minE) * scale;
+    const y = canvas.height - 20 - (n - minN) * scale;
+    return { x, y };
+  };
+  
+  // Plot unadjusted loop line
+  ctx.strokeStyle = '#fda4af';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  unadj.forEach((p, i) => {
+    const pt = mapCoords(p.e, p.n);
+    if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Plot adjusted loop line
+  ctx.strokeStyle = '#059669';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  adj.forEach((p, i) => {
+    const pt = mapCoords(p.e, p.n);
+    if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+  });
+  ctx.stroke();
+  
+  // Draw nodes
+  ctx.fillStyle = '#059669';
+  adj.forEach((p, i) => {
+    const pt = mapCoords(p.e, p.n);
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fill();
+  });
+}
+
+/* ================== ALIGNMENT CURVE DESIGN ELEMENTS ================== */
+function calculateCurve() {
+  const R = parseFloat(document.getElementById('curve-radius').value);
+  const I_deg = parseFloat(document.getElementById('curve-deflection').value);
+  const PI_chainage = parseFloat(document.getElementById('curve-pi-chainage').value);
+  
+  document.getElementById('radius-val').innerText = `${R} m`;
+  document.getElementById('deflection-val').innerText = `${I_deg}°`;
+  
+  const I_rad = I_deg * (Math.PI / 180);
+  
+  // Calculations
+  const T = R * Math.tan(I_rad / 2);
+  const L = R * I_rad;
+  const LC = 2 * R * Math.sin(I_rad / 2);
+  const E = R * (1 / Math.cos(I_rad / 2) - 1);
+  const M = R * (1 - Math.cos(I_rad / 2));
+  
+  const PC = PI_chainage - T;
+  const PT = PC + L;
+  
+  // Update output boxes
+  document.getElementById('res-curve-t').innerText = `${T.toFixed(2)} m`;
+  document.getElementById('res-curve-l').innerText = `${L.toFixed(2)} m`;
+  document.getElementById('res-curve-lc').innerText = `${LC.toFixed(2)} m`;
+  document.getElementById('res-curve-e').innerText = `${E.toFixed(2)} m`;
+  document.getElementById('res-curve-m').innerText = `${M.toFixed(2)} m`;
+  
+  const formatChainage = (ch) => {
+    const km = Math.floor(ch / 1000);
+    const m = (ch % 1000).toFixed(2);
+    return `CH ${km}+${m.padStart(6, '0')}`;
+  };
+  
+  document.getElementById('res-curve-pc').innerText = formatChainage(PC);
+  document.getElementById('res-curve-pt').innerText = formatChainage(PT);
+  
+  plotCurveDesign(R, I_deg, T, L);
+}
+
+function plotCurveDesign(R, I_deg, T, L) {
+  const canvas = document.getElementById('alignmentCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight || 320;
+  
+  ctx.clearRect(0,0, canvas.width, canvas.height);
+  
+  const cx = canvas.width / 2;
+  const cy = canvas.height * 0.7;
+  const scale = Math.min(canvas.width, canvas.height) / (R * 2.2 || 1);
+  
+  // Plot Tangents
+  const theta = (90 - I_deg / 2) * (Math.PI / 180);
+  const pxPI = cx;
+  const pyPI = cy - T * Math.sin(theta) * scale - 50;
+  
+  const pxPC = cx - T * Math.cos(theta) * scale;
+  const pyPC = cy;
+  const pxPT = cx + T * Math.cos(theta) * scale;
+  const pyPT = cy;
+  
+  // Tangent lines
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(pxPC, pyPC); ctx.lineTo(pxPI, pyPI); ctx.lineTo(pxPT, pyPT); ctx.stroke();
+  
+  // Dynamic arc rendering
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  
+  // Center of circular arc
+  const pxCenter = cx;
+  const pyCenter = cy + R * scale - (R * Math.cos(I_deg * Math.PI / 360)) * scale;
+  
+  const startAng = (270 - I_deg / 2) * (Math.PI / 180);
+  const endAng = (270 + I_deg / 2) * (Math.PI / 180);
+  
+  ctx.arc(pxCenter, pyCenter, R * scale, startAng, endAng, false);
+  ctx.stroke();
+  
+  // Drawing alignment control points
+  ctx.fillStyle = '#ef4444'; // PC
+  ctx.beginPath(); ctx.arc(pxPC, pyPC, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 9px Inter';
+  ctx.fillText('PC (CH)', pxPC - 25, pyPC + 15);
+  
+  ctx.fillStyle = '#10b981'; // PT
+  ctx.beginPath(); ctx.arc(pxPT, pyPT, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillText('PT (CH)', pxPT - 5, pyPT + 15);
+  
+  ctx.fillStyle = '#f59e0b'; // PI
+  ctx.beginPath(); ctx.arc(pxPI, pyPI, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillText('PI', pxPI - 5, pyPI - 10);
+}
+
+/* ================== EARTHWORK SIMULATOR ================== */
+function calculateEarthwork() {
+  const W = parseFloat(document.getElementById('ew-road-width').value);
+  const H = parseFloat(document.getElementById('ew-depth').value);
+  const S = parseFloat(document.getElementById('ew-side-slope').value);
+  const L = parseFloat(document.getElementById('ew-distance').value);
+  
+  document.getElementById('ew-depth-val').innerText = H >= 0 ? `+${H.toFixed(2)} m` : `${H.toFixed(2)} m`;
+  
+  // Cross-Section Area
+  // Trapezoidal cross-section formulation
+  const area = Math.abs(H) * (W + S * Math.abs(H));
+  const slopeW = S * Math.abs(H);
+  const totalVolume = area * L;
+  
+  document.getElementById('res-ew-class').innerText = H >= 0 ? 'FILL / EMBANKMENT' : 'CUT / EXCAVATION';
+  document.getElementById('res-ew-class').className = H >= 0 ? 'font-bold text-emerald-600' : 'font-bold text-red-600';
+  
+  document.getElementById('res-ew-area').innerText = `${area.toFixed(2)} m²`;
+  document.getElementById('res-ew-slope-w').innerText = `${slopeW.toFixed(2)} m`;
+  document.getElementById('res-ew-volume').innerText = `${totalVolume.toLocaleString(undefined, {maximumFractionDigits:2})} m³`;
+  
+  plotEarthworkSection(W, H, S);
+}
+
+function plotEarthworkSection(W, H, S) {
+  const canvas = document.getElementById('earthworkCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight || 320;
+  
+  ctx.clearRect(0,0, canvas.width, canvas.height);
+  
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const scale = 25; // Scale factor
+  
+  // Ground Line representation
+  ctx.strokeStyle = '#854d0e';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(40, cy); ctx.lineTo(canvas.width - 40, cy); ctx.stroke();
+  
+  // Draw Template Road Base Level
+  const baseW = W * scale;
+  const offsetH = H * scale;
+  const sideW = S * Math.abs(H) * scale;
+  
+  ctx.fillStyle = H >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+  ctx.strokeStyle = H >= 0 ? '#10b981' : '#ef4444';
+  ctx.lineWidth = 3;
+  
+  ctx.beginPath();
+  if (H >= 0) {
+    // Fill operation (Road base above natural ground)
+    ctx.moveTo(cx - baseW/2, cy - offsetH);
+    ctx.lineTo(cx + baseW/2, cy - offsetH);
+    ctx.lineTo(cx + baseW/2 + sideW, cy);
+    ctx.lineTo(cx - baseW/2 - sideW, cy);
+  } else {
+    // Cut operation (Road base below natural ground)
+    ctx.moveTo(cx - baseW/2, cy - offsetH);
+    ctx.lineTo(cx + baseW/2, cy - offsetH);
+    ctx.lineTo(cx + baseW/2 + sideW, cy);
+    ctx.lineTo(cx - baseW/2 - sideW, cy);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // Labels
+  ctx.fillStyle = '#475569';
+  ctx.font = 'semibold 10px Inter';
+  ctx.fillText('Proposed Subgrade level', cx - baseW/2, cy - offsetH - 10);
+  ctx.fillText('Natural Ground line', 50, cy - 8);
+}
+
+/* ================== PROCTOR TEST QUADRATIC OPTIMIZER ================== */
+function fitProctorCurve() {
+  const mc = [
+    parseFloat(document.getElementById('proc-mc-1').value),
+    parseFloat(document.getElementById('proc-mc-2').value),
+    parseFloat(document.getElementById('proc-mc-3').value),
+    parseFloat(document.getElementById('proc-mc-4').value),
+    parseFloat(document.getElementById('proc-mc-5').value)
+  ];
+  const dd = [
+    parseFloat(document.getElementById('proc-dd-1').value),
+    parseFloat(document.getElementById('proc-dd-2').value),
+    parseFloat(document.getElementById('proc-dd-3').value),
+    parseFloat(document.getElementById('proc-dd-4').value),
+    parseFloat(document.getElementById('proc-dd-5').value)
+  ];
+  
+  // Parabolic regression fitting (y = ax^2 + bx + c)
+  let sumX = 0, sumY = 0, sumX2 = 0, sumX3 = 0, sumX4 = 0, sumXY = 0, sumX2Y = 0;
+  const n = mc.length;
+  
+  for (let i = 0; i < n; i++) {
+    const x = mc[i]; const y = dd[i];
+    sumX += x; sumY += y;
+    sumX2 += x*x; sumX3 += x*x*x; sumX4 += x*x*x*x;
+    sumXY += x*y; sumX2Y += x*x*y;
+  }
+  
+  // Solving linear systems using Cramer's rule
+  const d = n * (sumX2 * sumX4 - sumX3 * sumX3) - sumX * (sumX * sumX4 - sumX2 * sumX3) + sumX2 * (sumX * sumX3 - sumX2 * sumX2);
+  const da = sumY * (sumX2 * sumX4 - sumX3 * sumX3) - sumX * (sumXY * sumX4 - sumX2Y * sumX3) + sumX2 * (sumXY * sumX3 - sumX2Y * sumX2);
+  const db = n * (sumXY * sumX4 - sumX2Y * sumX3) - sumY * (sumX * sumX4 - sumX2 * sumX3) + sumX2 * (sumX * sumX2Y - sumXY * sumX2);
+  const dc = n * (sumX2 * sumX2Y - sumX3 * sumXY) - sumX * (sumX * sumX2Y - sumX2 * sumXY) + sumY * (sumX * sumX3 - sumX2 * sumX2);
+  
+  const a = da / d;
+  const b = db / d;
+  const c = dc / d;
+  
+  // Optimum Moisture Content (Vertex of parabola x = -b / 2a)
+  const OMC = -b / (2 * a);
+  const MDD = a * OMC * OMC + b * OMC + c;
+  
+  document.getElementById('res-proc-omc').innerText = `${OMC.toFixed(2)} %`;
+  document.getElementById('res-proc-mdd').innerText = `${MDD.toFixed(2)} g/cm³`;
+  
+  plotProctorReg(mc, dd, a, b, c, OMC, MDD);
+}
+
+function plotProctorReg(mc, dd, a, b, c, omc, mdd) {
+  const canvas = document.getElementById('proctorCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight || 320;
+  
+  ctx.clearRect(0,0, canvas.width, canvas.height);
+  
+  // Render scatter points & regression parabolic line
+  const minX = 6; const maxX = 20;
+  const minY = 1.6; const maxY = 2.2;
+  
+  const getCanvasCoords = (x, y) => {
+    const px = 40 + (x - minX) * (canvas.width - 80) / (maxX - minX);
+    const py = canvas.height - 40 - (y - minY) * (canvas.height - 80) / (maxY - minY);
+    return { px, py };
+  };
+  
+  // Grid reference lines
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  for (let x = minX; x <= maxX; x += 2) {
+    const coords = getCanvasCoords(x, minY);
+    ctx.beginPath(); ctx.moveTo(coords.px, 20); ctx.lineTo(coords.px, canvas.height - 40); ctx.stroke();
+  }
+  for (let y = minY; y <= maxY; y += 0.1) {
+    const coords = getCanvasCoords(minX, y);
+    ctx.beginPath(); ctx.moveTo(40, coords.py); ctx.lineTo(canvas.width - 40, coords.py); ctx.stroke();
+  }
+  
+  // Parabolic Line
+  ctx.strokeStyle = '#4f46e5';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let x = minX; x <= maxX; x += 0.1) {
+    const y = a * x * x + b * x + c;
+    const coords = getCanvasCoords(x, y);
+    if (x === minX) ctx.moveTo(coords.px, coords.py); else ctx.lineTo(coords.px, coords.py);
+  }
+  ctx.stroke();
+  
+  // Scatter actual test nodes
+  ctx.fillStyle = '#f59e0b';
+  mc.forEach((x, idx) => {
+    const coords = getCanvasCoords(x, dd[idx]);
+    ctx.beginPath(); ctx.arc(coords.px, coords.py, 6, 0, Math.PI * 2); ctx.fill();
+  });
+  
+  // Highlight optimal point vertex
+  const optCoords = getCanvasCoords(omc, mdd);
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath(); ctx.arc(optCoords.px, optCoords.py, 8, 0, Math.PI * 2); ctx.fill();
+  
+  showToast('Parabolic Model Compiled', `Optimized Proctor MDD: ${mdd.toFixed(2)} g/cm³, OMC: ${omc.toFixed(2)}%`, 'success');
+}
+
+/* ================== SIEVE ANALYSIS SYSTEM ================== */
+const defaultGradation = [
+  { size: 50.0, passing: 100, min: 100, max: 100 },
+  { size: 37.5, passing: 98, min: 95, max: 100 },
+  { size: 19.0, passing: 85, min: 60, max: 90 },
+  { size: 9.5, passing: 62, min: 40, max: 75 },
+  { size: 4.75, passing: 45, min: 30, max: 60 },
+  { size: 2.36, passing: 32, min: 20, max: 45 },
+  { size: 0.60, passing: 18, min: 10, max: 30 },
+  { size: 0.075, passing: 6, min: 2, max: 12 }
+];
+
+function loadSieveDefaults() {
+  const tbody = document.querySelector('#sieve-table tbody');
+  tbody.innerHTML = '';
+  
+  defaultGradation.forEach((s, idx) => {
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-slate-100 hover:bg-slate-50';
+    tr.innerHTML = `
+      <td class="py-2.5 font-bold text-slate-700">${s.size} mm</td>
+      <td class="py-2.5"><input type="number" id="sieve-pass-${idx}" value="${s.passing}" class="w-16 px-1.5 py-1 border border-slate-200 rounded text-xs text-center"/></td>
+      <td class="py-2.5 text-slate-500 font-semibold">${s.min}% - ${s.max}%</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function calculateSieveGradation() {
+  const data = [];
+  defaultGradation.forEach((s, idx) => {
+    const passing = parseFloat(document.getElementById(`sieve-pass-${idx}`).value);
+    data.push({ size: s.size, passing: passing, min: s.min, max: s.max });
+  });
+  
+  plotSieveLogarithmic(data);
+}
+
+function plotSieveLogarithmic(data) {
+  const canvas = document.getElementById('sieveCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight || 320;
+  
+  ctx.clearRect(0,0, canvas.width, canvas.height);
+  
+  // Setup Log Scale mappings (size on semi-log scale, passing linear)
+  const mapCoords = (size, passing) => {
+    // Log scale base conversion
+    const logSize = Math.log10(size);
+    const minLog = Math.log10(0.05);
+    const maxLog = Math.log10(75);
+    
+    const px = 50 + (logSize - minLog) * (canvas.width - 100) / (maxLog - minLog);
+    const py = canvas.height - 40 - (passing / 100) * (canvas.height - 80);
+    return { px, py };
+  };
+  
+  // Sieve mesh vertical lines
+  ctx.strokeStyle = '#f1f5f9';
+  ctx.lineWidth = 1;
+  const standardSieves = [75, 50, 37.5, 19, 9.5, 4.75, 2.36, 1.18, 0.6, 0.3, 0.15, 0.075];
+  standardSieves.forEach(s => {
+    const coords = mapCoords(s, 0);
+    ctx.beginPath(); ctx.moveTo(coords.px, 20); ctx.lineTo(coords.px, canvas.height - 40); ctx.stroke();
+  });
+  
+  // Specification limits bounding box
+  ctx.strokeStyle = '#fca5a5';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  
+  // Upper specification line
+  ctx.beginPath();
+  data.forEach((s, i) => {
+    const coords = mapCoords(s.size, s.max);
+    if (i === 0) ctx.moveTo(coords.px, coords.py); else ctx.lineTo(coords.px, coords.py);
+  });
+  ctx.stroke();
+  
+  // Lower specification line
+  ctx.beginPath();
+  data.forEach((s, i) => {
+    const coords = mapCoords(s.size, s.min);
+    if (i === 0) ctx.moveTo(coords.px, coords.py); else ctx.lineTo(coords.px, coords.py);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Draw actual grading curve
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  data.forEach((s, i) => {
+    const coords = mapCoords(s.size, s.passing);
+    if (i === 0) ctx.moveTo(coords.px, coords.py); else ctx.lineTo(coords.px, coords.py);
+  });
+  ctx.stroke();
+  
+  // Sieve actual nodes
+  ctx.fillStyle = '#0ea5e9';
+  data.forEach(s => {
+    const coords = mapCoords(s.size, s.passing);
+    ctx.beginPath(); ctx.arc(coords.px, coords.py, 5, 0, Math.PI * 2); ctx.fill();
+  });
+  
+  showToast('Sieve Gradation Active', 'Gradation chart plotted with envelope controls.', 'success');
+}
+
+/* ================== MARSHALL DESIGN VERIFIER ================== */
+function renderBitumenTable() {
+  const tbody = document.querySelector('#marshallTable tbody');
+  tbody.innerHTML = '';
+  
+  appState.bitumenTests.forEach(t => {
+    const tr = document.createElement('tr');
+    const badge = t.spec === 'Pass' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200';
+    tr.innerHTML = `
+      <td class="px-4 py-3 font-bold text-slate-700">${t.id}</td>
+      <td class="px-4 py-3 font-semibold">${t.mc.toFixed(2)} %</td>
+      <td class="px-4 py-3">${t.stability.toFixed(2)} kN</td>
+      <td class="px-4 py-3">${t.flow.toFixed(2)} mm</td>
+      <td class="px-4 py-3">${(t.stability * 1.04).toFixed(2)} kN</td>
+      <td class="px-4 py-3 text-right"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badge}">${t.spec}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function calculateMarshall() {
+  const id = document.getElementById('bit-id').value || 'BIT-RAW-001';
+  const mc = parseFloat(document.getElementById('bit-content').value);
+  const stab = parseFloat(document.getElementById('bit-stability').value);
+  const flow = parseFloat(document.getElementById('bit-flow').value);
+  
+  // ERA Spec limits: Stability > 8kN, Flow 2mm to 4mm
+  const isCompliant = stab >= 8.0 && flow >= 2.0 && flow <= 4.0;
+  const spec = isCompliant ? 'Pass' : 'Fail';
+  
+  appState.bitumenTests.push({ id, mc, stability: stab, flow, spec });
+  renderBitumenTable();
+  showToast('Marshall Index Logged', `Result categorized as compliance ${spec}.`, isCompliant ? 'success' : 'warning');
+}
+
+/* ================== CONCRETE STRUCTURAL LOG ================== */
+function renderConcreteTable() {
+  const tbody = document.querySelector('#concreteTable tbody');
+  tbody.innerHTML = '';
+  
+  appState.concreteTests.forEach(c => {
+    const tr = document.createElement('tr');
+    const badge = c.status.includes('Pass') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200';
+    tr.innerHTML = `
+      <td class="px-4 py-3 font-bold text-slate-700">${c.ref}</td>
+      <td class="px-4 py-3 font-semibold text-slate-800">${c.design}</td>
+      <td class="px-4 py-3 font-semibold">${c.age} Days</td>
+      <td class="px-4 py-3">${c.load} kN</td>
+      <td class="px-4 py-3 font-black text-sky-700">${c.stress.toFixed(2)} MPa</td>
+      <td class="px-4 py-3 text-right"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badge}">${c.status}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function calculateConcreteStrength() {
+  const concreteClass = document.getElementById('conc-class').value;
+  const age = parseInt(document.getElementById('conc-age').value);
+  const load = parseFloat(document.getElementById('conc-load').value);
+  const width = parseFloat(document.getElementById('conc-width').value);
+  const height = parseFloat(document.getElementById('conc-height').value);
+  
+  // Compressive Stress Area = Load / Area
+  const areaSqMeter = (width * height) / 1000000; // convert to square meters
+  const areaSqMm = width * height;
+  const stressMPa = (load * 1000) / areaSqMm; // load in N, area in mm2
+  
+  const target = parseFloat(concreteClass);
+  const pass = stressMPa >= target;
+  const status = pass ? 'Pass' : 'Fail';
+  
+  const ref = `CON-C${concreteClass}-${Math.floor(Math.random() * 90) + 10}`;
+  appState.concreteTests.push({ ref, design: `C${concreteClass}`, age, load, stress: stressMPa, status });
+  
+  renderConcreteTable();
+  showToast('Concrete Compressive Stress Computed', `Structural strength of ${stressMPa.toFixed(2)} MPa determined.`, pass ? 'success' : 'warning');
+}
+
+/* ================== BILL OF QUANTITIES & INTERIM PAYMENTS ================== */
+function renderBoqTable() {
+  const tbody = document.querySelector('#boqTable tbody');
+  tbody.innerHTML = '';
+  
+  appState.boqItems.forEach(item => {
+    const tr = document.createElement('tr');
+    const totalCum = (item.prevQty + item.thisQty) * item.rate;
+    tr.innerHTML = `
+      <td class="px-4 py-3 font-bold text-slate-700">${item.ref}</td>
+      <td class="px-4 py-3 font-semibold text-slate-800">${item.desc}</td>
+      <td class="px-4 py-3 text-center uppercase font-bold text-slate-500 text-[10px]">${item.unit}</td>
+      <td class="px-4 py-3 font-semibold text-slate-700">${item.rate.toLocaleString()}</td>
+      <td class="px-4 py-3">${item.prevQty.toLocaleString()}</td>
+      <td class="px-4 py-3"><input type="number" step="0.1" value="${item.thisQty}" class="w-16 px-1.5 py-0.5 border border-slate-200 rounded text-center text-xs outline-none" onchange="updateBoqValue('${item.ref}', this.value)"/></td>
+      <td class="px-4 py-3 text-right font-black text-sky-700">${totalCum.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  compileIpcSummary();
+}
+
+function updateBoqValue(ref, val) {
+  const item = appState.boqItems.find(x => x.ref === ref);
+  if (item) {
+    item.thisQty = parseFloat(val) || 0;
+    renderBoqTable();
+  }
+}
+
+function compileIpcSummary() {
+  let previousValue = 0;
+  let currentValue = 0;
+  
+  appState.boqItems.forEach(item => {
+    previousValue += item.prevQty * item.rate;
+    currentValue += item.thisQty * item.rate;
+  });
+  
+  const cumulativeValue = previousValue + currentValue;
+  const retention = cumulativeValue * 0.10;
+  const withholdingTax = cumulativeValue * 0.02;
+  const netDue = cumulativeValue - retention - withholdingTax;
+  
+  const box = document.getElementById('ipc-summary-box');
+  box.innerHTML = `
+    <div class="space-y-2.5 text-xs">
+      <div class="flex justify-between"><span class="text-slate-500">Gross Valuation Previous:</span><span class="font-bold text-slate-800">ETB ${previousValue.toLocaleString(undefined, {maximumFractionDigits:2})}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Gross Valuation This Period:</span><span class="font-extrabold text-slate-800 text-sm">ETB ${currentValue.toLocaleString(undefined, {maximumFractionDigits:2})}</span></div>
+      <div class="flex justify-between border-t border-slate-100 pt-1.5"><span class="text-slate-500 font-semibold">Total Cumulative:</span><span class="font-bold">ETB ${cumulativeValue.toLocaleString(undefined, {maximumFractionDigits:2})}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Less Retention (10%):</span><span class="font-bold text-red-600">- ETB ${retention.toLocaleString(undefined, {maximumFractionDigits:2})}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Less Withholding (2%):</span><span class="font-bold text-red-600">- ETB ${withwithholdingTax(withholdingTax)}</span></div>
+      <div class="flex justify-between border-t border-slate-200 pt-2 font-black text-sm text-emerald-600"><span class="text-slate-800">Net Payable Certified:</span><span>ETB ${netDue.toLocaleString(undefined, {maximumFractionDigits:2})}</span></div>
+    </div>
+  `;
+}
+
+function withwithholdingTax(val) {
+  return val.toLocaleString(undefined, {maximumFractionDigits:2});
+}
+
+function compileIpcCertificate() {
+  showToast('IPC Certified', 'Interim Payment Certificate successfully logged and compiled with geodetic baseline verification.', 'success');
+}
+
+/* ================== FIELD LOG WORKSPACE ================== */
+function renderDailyReports() {
+  const container = document.getElementById('dailyReportsContainer');
+  container.innerHTML = '';
+  
+  appState.dailyReports.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm space-y-2 relative overflow-hidden';
+    div.innerHTML = `
+      <div class="flex justify-between items-center border-b border-slate-200 pb-1.5">
+        <span class="font-bold text-xs text-sky-800">${r.date}</span>
+        <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-sky-50 text-sky-700">${r.weather}</span>
+      </div>
+      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Active Chainage Segment: ${r.chainage}</p>
+      <p class="text-xs text-slate-600 font-medium leading-relaxed">${r.note}</p>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function saveDailyReport() {
+  const weather = document.getElementById('diary-weather').value;
+  const start = document.getElementById('diary-ch-start').value;
+  const end = document.getElementById('diary-ch-end').value;
+  const note = document.getElementById('diary-note').value || 'Baseline field operations proceed on structural elements.';
+  
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  const dateStr = new Date().toLocaleDateString('en-US', options);
+  
+  appState.dailyReports.unshift({
+    date: dateStr,
+    weather,
+    chainage: `CH ${start} - ${end}`,
+    note
+  });
+  
+  renderDailyReports();
+  showToast('Supervisory Entry Logged', 'Daily corridor construction diary saved.', 'success');
+}
+</script>
+</body>
+</html>
